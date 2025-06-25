@@ -13,13 +13,17 @@
     "@ai-sdk/react": "^1.2.12",
     "ai": "^4.3.16",
     "clsx": "^2.1.1",
+    "motion": "^12.19.1",
     "next": "15.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "tailwind-merge": "^3.3.1",
     "zod": "^3.25.67"
   },
   "devDependencies": {
+    "@iconify/json": "^2.2.352",
+    "@iconify/tailwind4": "^1.0.6",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
