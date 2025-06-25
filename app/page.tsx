@@ -38,7 +38,7 @@ export default function Chat() {
     useChat();
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen font-sans">
       <div className="flex-1 overflow-y-auto py-10">
         <div className="max-w-3xl mx-auto">
           <MessageList messages={messages} status={status} />
