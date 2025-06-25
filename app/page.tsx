@@ -1,72 +1,58 @@
 "use client";
 
-import React, { ReactNode, useRef, useActionState, useOptimistic } from "react";
+import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
+import { Message } from "@/components/message";
+import Spinner from "@/components/spinner";
+import Input from "@/components/input";
 
-type Message = {
-  content: ReactNode;
-  pending: boolean;
-};
-
-const sleep = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(() => resolve(), ms));
-
-function MessageList({ messages }: { messages: Message[] }) {
+function MessageList({
+  messages,
+  status,
+}: {
+  messages: UIMessage[];
+  status: "ready" | "submitted" | "streaming" | "error";
+}) {
   return (
-    <ul>
-      {messages.map((message: Message, idx: number) => {
+    <ul className="space-y-12">
+      {messages.map((message: UIMessage) => {
         return (
-          <li key={idx}>
-            {message.content} {message.pending && "(loading)"}
+          <li key={message.id}>
+            <Message message={message} />
           </li>
         );
       })}
+      {status === "submitted" && (
+        <div className="ml-2.5 flex flex-row items-start justify-start">
+          <div className="rounded-3xl">
+            <Spinner />
+          </div>
+        </div>
+      )}
     </ul>
   );
 }
+
 export default function Chat() {
-  const formRef = useRef<HTMLFormElement>(null);
-  const [messages, formAction, isPending] = useActionState<Message[], FormData>(
-    async (state, payload) => {
-      const message = payload.get("message") as string;
-      addOptimistic([
-        ...state,
-        {
-          content: message,
-          pending: true,
-        },
-      ]);
-
-      formRef.current?.reset();
-      await sleep(1000);
-
-      return [
-        ...state,
-        {
-          content: message,
-          pending: false,
-        },
-      ];
-    },
-    []
-  );
-
-  const [optimisticMessage, addOptimistic] = useOptimistic<Message[]>(messages);
+  const { messages, input, handleInputChange, handleSubmit, status, stop } =
+    useChat();
 
   return (
-    <div>
-      <MessageList messages={optimisticMessage} />
-      <form className="flex flex-row" action={formAction} ref={formRef}>
-        <input className="border" name="message" type="text" />
-        <button
-          className={`border bg-white ${
-            isPending ? "cursor-not-allowed" : "cursor-pointer"
-          }`}
-          type="submit"
-          disabled={isPending}
-        >
-          Send
-        </button>
-      </form>
+    <div className="flex flex-col h-screen">
+      <div className="flex-1 overflow-y-auto py-10">
+        <div className="max-w-3xl mx-auto">
+          <MessageList messages={messages} status={status} />
+        </div>
+      </div>
+      <div className="max-w-3xl mx-auto w-full">
+        <Input
+          inputValue={input}
+          onInputChange={handleInputChange}
+          onSubmit={handleSubmit}
+          status={status}
+          stop={stop}
+        />
+      </div>
     </div>
   );
 }
