@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^1.2.19",
     "@ai-sdk/react": "^1.2.12",
+    "@openrouter/ai-sdk-provider": "^0.7.2",
     "ai": "^4.3.16",
     "clsx": "^2.1.1",
     "motion": "^12.19.1",
@@ -18,16 +19,19 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "zod": "^3.25.67"
   },
   "devDependencies": {
     "@iconify/json": "^2.2.352",
     "@iconify/tailwind4": "^1.0.6",
+    "@shikijs/rehype": "^3.7.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "shiki": "^3.7.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
