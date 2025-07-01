@@ -12,11 +12,6 @@ export function Message({ message }: { message: UIMessage }) {
           : "justify-start"
       )}
     >
-      {message.role === "assistant" && (
-        <div className="flex items-start justify-center border border-neutral-200 shadow-sm rounded-full p-1.5 mr-3">
-          <span className="icon-[logos--openai-icon] w-5 h-5"></span>
-        </div>
-      )}
       <div
         className={cn(
           "rounded-3xl",
