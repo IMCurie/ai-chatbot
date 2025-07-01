@@ -39,19 +39,21 @@ export default function Chat() {
 
   return (
     <div className="flex flex-col h-screen font-sans">
-      <div className="flex-1 overflow-y-auto py-10">
-        <div className="max-w-3xl mx-auto">
-          <MessageList messages={messages} status={status} />
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto flex flex-col h-full">
+          <div className="flex-1 py-10">
+            <MessageList messages={messages} status={status} />
+          </div>
+          <div className="w-full">
+            <Input
+              inputValue={input}
+              onInputChange={handleInputChange}
+              onSubmit={handleSubmit}
+              status={status}
+              stop={stop}
+            />
+          </div>
         </div>
-      </div>
-      <div className="max-w-3xl mx-auto w-full">
-        <Input
-          inputValue={input}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
-          status={status}
-          stop={stop}
-        />
       </div>
     </div>
   );
