@@ -1,11 +1,10 @@
 "use client";
 
 import React from "react";
-import { MarkdownHooks } from "react-markdown";
-import remarkGfm from "remark-gfm";
+import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
-import rehypeShiki from "@shikijs/rehype";
-import Spinner from "./spinner";
+import remarkGfm from "remark-gfm";
+import Code from "./code";
 
 const MarkdownComponents: Components = {
   h1: ({ children }) => (
@@ -60,27 +59,6 @@ const MarkdownComponents: Components = {
       {children}
     </a>
   ),
-
-  // 代码块样式 - 添加容器样式
-  pre: ({ children }) => (
-    <pre className="bg-gray-50 rounded-lg p-4 my-6 overflow-x-auto border border-gray-200">
-      {children}
-    </pre>
-  ),
-
-  // 行内代码样式
-  code: ({ children, className }) => {
-    // 如果没有className，说明是行内代码
-    if (!className) {
-      return (
-        <code className="bg-gray-100 text-red-600 px-1.5 py-0.5 rounded text-sm font-mono">
-          {children}
-        </code>
-      );
-    }
-    // 代码块中的code，保持原样
-    return <code className={className}>{children}</code>;
-  },
 
   ul: ({ children }) => (
     <ul className="list-disc ml-6 mb-5 text-black space-y-2">{children}</ul>
@@ -138,39 +116,15 @@ const MarkdownComponents: Components = {
     </td>
   ),
 
-  input: ({ type, checked, disabled }) =>
-    type === "checkbox" ? (
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        className="mr-2 text-blue-600 rounded focus:ring-blue-500"
-        readOnly
-      />
-    ) : null,
+  code: ({ children, className }) => (
+    <Code className={className}>{children}</Code>
+  ),
 };
 
 export default function EnhancedMarkdown({ message }: { message: string }) {
   return (
-    <div className="prose prose-neutral max-w-none">
-      <MarkdownHooks
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[
-          [
-            rehypeShiki,
-            {
-              themes: {
-                light: "github-light",
-                dark: "github-dark",
-              },
-            },
-          ],
-        ]}
-        components={MarkdownComponents}
-        fallback={<Spinner />}
-      >
-        {message}
-      </MarkdownHooks>
-    </div>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
+      {message}
+    </ReactMarkdown>
   );
 }

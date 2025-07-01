@@ -3,4 +3,5 @@
 
 @theme {
   --font-sans: var(--font-en-sans), var(--font-zh-sans);
+  --font-mono: var(--mono);
 }
