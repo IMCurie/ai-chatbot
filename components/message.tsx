@@ -1,5 +1,5 @@
 import { UIMessage } from "ai";
-import EnhancedMarkdown from "./enhance-markdown";
+import MemoizedMarkdown from "./enhance-markdown";
 import { cn } from "@/lib/utils";
 
 export function Message({ message }: { message: UIMessage }) {
@@ -19,7 +19,7 @@ export function Message({ message }: { message: UIMessage }) {
         )}
       >
         {message.role === "assistant" ? (
-          <EnhancedMarkdown message={message.content} />
+          <MemoizedMarkdown content={message.content} id={message.id} />
         ) : (
           <div className="text-black">{message.content}</div>
         )}

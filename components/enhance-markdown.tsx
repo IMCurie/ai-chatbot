@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import { marked } from "marked";
+import { memo, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -36,7 +37,7 @@ const MarkdownComponents: Components = {
   ),
 
   p: ({ children }) => (
-    <p className="text-black leading-7 mb-5 last:mb-0">{children}</p>
+    <p className="text-black leading-7 mb-3 last:mb-0">{children}</p>
   ),
 
   strong: ({ children }) => (
@@ -119,12 +120,44 @@ const MarkdownComponents: Components = {
   code: ({ children, className }) => (
     <Code className={className}>{children}</Code>
   ),
+
+  pre: ({ children }) => <pre className="mb-5">{children}</pre>,
 };
 
-export default function EnhancedMarkdown({ message }: { message: string }) {
-  return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>
-      {message}
-    </ReactMarkdown>
-  );
+function parseMarkdownIntoBlocks(markdown: string): string[] {
+  const tokens = marked.lexer(markdown);
+  return tokens.map((token) => token.raw);
 }
+
+const MemoizedMarkdownBlock = memo(
+  ({ content }: { content: string }) => {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={MarkdownComponents}
+      >
+        {content}
+      </ReactMarkdown>
+    );
+  },
+  (prevProps, nextProps) => {
+    if (prevProps.content !== nextProps.content) return false;
+    return true;
+  }
+);
+
+MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
+
+const MemoizedMarkdown = memo(
+  ({ content, id }: { content: string; id: string }) => {
+    const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content]);
+
+    return blocks.map((block, index) => (
+      <MemoizedMarkdownBlock content={block} key={`${id}-block_${index}`} />
+    ));
+  }
+);
+
+MemoizedMarkdown.displayName = "MemoizedMarkdown";
+
+export default MemoizedMarkdown;
