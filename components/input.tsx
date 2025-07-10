@@ -16,8 +16,8 @@ export default function Input({
   const hasInput = inputValue.trim().length > 0;
 
   return (
-    <div className="w-full max-w-4xl mx-auto rounded-3xl pb-6">
-      <div className="relative border border-neutral-200 shadow-sm rounded-3xl">
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="relative backdrop-blur-md bg-white/80 border border-neutral-200/50 shadow-lg rounded-3xl">
         <div className="flex items-end px-5 pt-2 pb-3 gap-3">
           <form onSubmit={onSubmit} className="flex w-full items-end gap-3">
             <div className="flex-1">
