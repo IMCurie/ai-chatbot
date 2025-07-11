@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@plugin "@iconify/tailwind4";
 
 @theme {
   --font-sans: var(--font-en-sans), var(--font-zh-sans);
