@@ -7,6 +7,7 @@ import Spinner from "@/components/spinner";
 import Input from "@/components/input";
 import { useEffect, useState, useRef } from "react";
 import { ArrowDown } from "lucide-react";
+import { Model, models } from "@/lib/models";
 
 function MessageList({
   messages,
@@ -36,8 +37,16 @@ function MessageList({
 }
 
 export default function Chat() {
+  const [selectedModel, setSelectedModel] = useState<Model>(
+    models.find((m) => m.id === "openai/gpt-4.1-mini-2025-04-14") || models[0]
+  );
+
   const { messages, input, handleInputChange, handleSubmit, status, stop } =
-    useChat();
+    useChat({
+      body: {
+        model: selectedModel,
+      },
+    });
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -105,6 +114,8 @@ export default function Chat() {
           onSubmit={handleSubmit}
           status={status}
           stop={stop}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
         />
       </div>
     </div>
