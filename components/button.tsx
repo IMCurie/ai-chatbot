@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ArrowUp } from "lucide-react";
 
 export function StopButton({ stop }: { stop: () => void }) {
   return (
@@ -31,12 +32,11 @@ export function SendButton({ disabled = false }: { disabled?: boolean }) {
           : "cursor-pointer bg-neutral-800 hover:bg-neutral-700 shadow-sm hover:shadow-md"
       )}
     >
-      <span
-        className={cn(
-          "icon-[material-symbols--arrow-upward] w-5 h-5",
-          disabled ? "text-neutral-500" : "text-white"
-        )}
-      ></span>
+      <ArrowUp
+        className={cn(disabled ? "text-neutral-500" : "text-white")}
+        size={20}
+        strokeWidth={1.5}
+      />
     </button>
   );
 }

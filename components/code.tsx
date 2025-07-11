@@ -81,7 +81,7 @@ const Code = memo(
         <div
           className={cn(
             className,
-            "mt-2 mb-4 rounded-lg border border-neutral-200 bg-white overflow-hidden"
+            "mt-2 mb-4 rounded-lg border border-neutral-200 bg-white overflow-hidden w-full"
           )}
         >
           <div className="p-4 overflow-x-auto font-mono text-sm">

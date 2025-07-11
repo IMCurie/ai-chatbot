@@ -37,7 +37,7 @@ const MarkdownComponents: Components = {
   ),
 
   p: ({ children }) => (
-    <p className="text-black leading-7 mb-3 last:mb-0">{children}</p>
+    <p className="text-black leading-7 mb-3 last:mb-0 text-justify">{children}</p>
   ),
 
   strong: ({ children }) => (
