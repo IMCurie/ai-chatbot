@@ -1,6 +1,7 @@
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Inter, Noto_Sans_SC, JetBrains_Mono } from "next/font/google";
+import ChatSidebar from "@/components/chat-sidebar";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -35,7 +36,10 @@ export default async function RootLayout({
           "antialiased"
         )}
       >
-        <main>{children}</main>
+        <div className="flex h-screen">
+          <ChatSidebar />
+          <main className="flex-1">{children}</main>
+        </div>
       </body>
     </html>
   );
