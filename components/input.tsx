@@ -8,7 +8,7 @@ export default function Input({
   onSubmit,
   status,
   stop,
-  selectedModel,
+  model,
   onModelChange,
 }: {
   inputValue: string;
@@ -16,7 +16,7 @@ export default function Input({
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   status: "submitted" | "streaming" | "ready" | "error";
   stop: () => void;
-  selectedModel: Model;
+  model: Model;
   onModelChange: (model: Model) => void;
 }) {
   const hasInput = inputValue.trim().length > 0;
@@ -24,12 +24,9 @@ export default function Input({
   return (
     <div className="relative backdrop-blur-md bg-white/80 border border-neutral-200/50 shadow-lg rounded-3xl">
       <div className="px-5 pt-3 pb-2 border-b border-neutral-100">
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-        />
+        <ModelSelector selectedModel={model} onModelChange={onModelChange} />
       </div>
-      
+
       <div className="flex items-end px-5 pt-2 pb-3 gap-3">
         <form onSubmit={onSubmit} className="flex w-full items-end gap-3">
           <div className="flex-1">

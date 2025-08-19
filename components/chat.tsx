@@ -1,93 +1,82 @@
 "use client";
 
+import React, { useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { MessageList } from "@/components/message-list";
 import Input from "@/components/input";
-import { useEffect, useState, useRef } from "react";
-import { ArrowDown } from "lucide-react";
-import { Model } from "@/lib/models";
-import { models } from "@/lib/models";
+import { useChatStore } from "@/lib/store";
+import { Greeting } from "@/components/greeting";
+import { v4 as uuidv4 } from "uuid";
 
-export default function Chat() {
-  const [selectedModel, setSelectedModel] = useState<Model>(
-    models.find((m) => m.id === "openai/gpt-4.1-mini-2025-04-14") || models[0]
-  );
+export default function Chat({ id }: { id: string }) {
+  const { chats, addMessage, createChat, model, setModel } = useChatStore();
+  const [input, setInput] = useState("");
 
-  const { messages, input, handleInputChange, handleSubmit, status, stop } =
-    useChat({
-      body: {
-        model: selectedModel,
-      },
-    });
+  const existingChat = chats.find((chat) => chat.id === id);
+  const initialMessages = existingChat?.messages || [];
 
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { status, stop, append } = useChat({
+    body: {
+      model: model,
+    },
+    initialMessages: initialMessages,
+    onFinish: (message) => {
+      if (id) {
+        addMessage(id, {
+          id: uuidv4(),
+          role: "assistant",
+          content: message.content,
+          createdAt: new Date(),
+        });
+      }
+    },
+  });
 
-  useEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
+  const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
-    const handleScroll = () => {
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 20;
-      setShowScrollButton(!isAtBottom);
-    };
+    if (input.trim()) {
+      if (!existingChat) {
+        createChat(id);
+      }
 
-    scrollContainer.addEventListener("scroll", handleScroll);
-    handleScroll();
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
-  }, [messages]);
+      window.history.replaceState({}, "", `/chat/${id}`);
 
-  const scrollToBottom = () => {
-    const scrollContainer = scrollContainerRef.current;
-    if (scrollContainer) {
-      scrollContainer.scrollTo({
-        top: scrollContainer.scrollHeight,
-        behavior: "smooth",
+      addMessage(id, {
+        id: uuidv4(),
+        createdAt: new Date(),
+        role: "user",
+        content: input.trim(),
       });
+      append({ role: "user", content: input.trim() });
     }
+
+    setInput("");
   };
 
   return (
-    <div
-      className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable"
-      ref={scrollContainerRef}
-    >
+    <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
       <div className="flex-1">
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
-            <MessageList messages={messages} status={status} />
+            {initialMessages.length === 0 ? (
+              <Greeting />
+            ) : (
+              <MessageList messages={initialMessages} status={status} />
+            )}
           </div>
         </div>
       </div>
 
-      {showScrollButton && (
-        <div className="sticky bottom-36">
-          <div className="w-full max-w-3xl mx-auto flex justify-center">
-            <button
-              onClick={scrollToBottom}
-              className="w-8 h-8 bg-white rounded-full border border-neutral-200 hover:cursor-pointer flex items-center justify-center"
-            >
-              <ArrowDown
-                className="w-6 h-6"
-                size={24}
-                strokeWidth={1.5}
-                color="black"
-              />
-            </button>
-          </div>
-        </div>
-      )}
-
       <div className="sticky bottom-0 w-full max-w-3xl mx-auto pb-4">
         <Input
           inputValue={input}
-          onInputChange={handleInputChange}
-          onSubmit={handleSubmit}
+          onInputChange={(e) => setInput(e.target.value)}
+          onSubmit={handleFormSubmit}
           status={status}
           stop={stop}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          model={model}
+          onModelChange={setModel}
         />
       </div>
     </div>

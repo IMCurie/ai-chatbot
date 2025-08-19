@@ -1,4 +1,9 @@
-export type ModelProvider = "openai" | "anthropic" | "google" | "openrouter" | "grok";
+export type ModelProvider =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "openrouter"
+  | "grok";
 
 export interface Model {
   id: string;
