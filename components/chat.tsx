@@ -112,10 +112,10 @@ export default function Chat({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
+      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur px-4 pt-4 pb-2 border-b">
+        <ModelSelector selectedModel={model} onModelChange={setModel} />
+      </div>
       <div className="flex-1">
-        <div className="px-4 pt-4">
-          <ModelSelector selectedModel={model} onModelChange={setModel} />
-        </div>
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
             {initialMessages.length === 0 ? (
