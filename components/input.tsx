@@ -6,12 +6,16 @@ export default function Input({
   onSubmit,
   status,
   stop,
+  disabled = false,
+  placeholder = "Ask anything",
 }: {
   inputValue: string;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   status: "submitted" | "streaming" | "ready" | "error";
   stop: () => void;
+  disabled?: boolean;
+  placeholder?: string;
 }) {
   const hasInput = inputValue.trim().length > 0;
 
@@ -23,8 +27,11 @@ export default function Input({
             <textarea
               value={inputValue}
               onChange={onInputChange}
-              placeholder="Ask anything"
-              className="w-full bg-transparent text-neutral-900 placeholder-neutral-500 text-base outline-none resize-none min-h-[64px] max-h-32 py-2 leading-6"
+              placeholder={placeholder}
+              disabled={disabled}
+              className={`w-full bg-transparent text-neutral-900 placeholder-neutral-500 text-base outline-none resize-none min-h-[64px] max-h-32 py-2 leading-6 ${
+                disabled ? "cursor-not-allowed opacity-50" : ""
+              }`}
               rows={3}
               onInput={(e) => {
                 const target = e.target as HTMLTextAreaElement;
@@ -32,7 +39,7 @@ export default function Input({
                 target.style.height = `${Math.max(target.scrollHeight, 64)}px`;
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && hasInput) {
+                if (e.key === "Enter" && !e.shiftKey && hasInput && !disabled) {
                   e.preventDefault();
                   onSubmit(e as any);
                 }
@@ -44,7 +51,7 @@ export default function Input({
             {status === "submitted" || status === "streaming" ? (
               <StopButton stop={stop} />
             ) : (
-              <SendButton disabled={!hasInput} />
+              <SendButton disabled={!hasInput || disabled} />
             )}
           </div>
         </form>

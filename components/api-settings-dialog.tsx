@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ModelProvider } from "@/lib/models";
+import { ModelProvider, getModelsByProvider } from "@/lib/models";
 import { useChatStore } from "@/lib/store";
+import { ModelList } from "@/components/model-list";
 
 import {
   DialogContent,
@@ -39,12 +40,22 @@ const providerConfig = {
 } as const;
 
 export function ApiSettingsDialog() {
-  const { setApiKey, getApiKey, setApiBaseUrl, getApiBaseUrl } = useChatStore();
+  const {
+    setApiKey,
+    getApiKey,
+    setApiBaseUrl,
+    getApiBaseUrl,
+    allAvailableModels,
+    isLoadingModels,
+    modelErrors,
+    fetchModels,
+  } = useChatStore();
   const [selectedProvider, setSelectedProvider] =
     useState<ModelProvider>("openai");
   const [apiKey, setApiKeyValue] = useState("");
   const [apiBaseUrl, setApiBaseUrlValue] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const providers: ModelProvider[] = [
     "openai",
@@ -65,6 +76,14 @@ export function ApiSettingsDialog() {
   const handleApiKeyChange = (value: string) => {
     setApiKeyValue(value);
     setApiKey(selectedProvider, value);
+
+    // 如果输入了有效的API Key，自动获取模型
+    if (value.trim()) {
+      // 短暂延迟后获取模型，避免频繁请求
+      setTimeout(() => {
+        fetchModels();
+      }, 500);
+    }
   };
 
   const handleApiBaseUrlChange = (value: string) => {
@@ -72,8 +91,26 @@ export function ApiSettingsDialog() {
     setApiBaseUrl(selectedProvider, value);
   };
 
+  // 手动刷新模型
+  const handleRefreshModels = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchModels();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // 获取当前提供商的模型
+  const currentProviderModels = getModelsByProvider(
+    allAvailableModels,
+    selectedProvider
+  );
+  const currentProviderError = modelErrors[selectedProvider];
+  const hasApiKey = !!getApiKey(selectedProvider);
+
   return (
-    <DialogContent className="w-1/2 h-2/3 max-w-none sm:max-w-none p-0 gap-0 flex flex-col">
+    <DialogContent className="w-1/2 h-3/4 max-w-none sm:max-w-none p-0 gap-0 flex flex-col">
       <DialogHeader className="px-4 py-4 border-b">
         <DialogTitle className="text-lg">API 设置</DialogTitle>
         <DialogDescription className="text-sm">
@@ -112,9 +149,32 @@ export function ApiSettingsDialog() {
 
         {/* Right Panel - Provider Configuration */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <h2 className="mb-4 border-b py-2 px-4">{selectedConfig.name}</h2>
+          <div className="flex items-center justify-between border-b py-2 px-4">
+            <h2 className="font-medium">{selectedConfig.name}</h2>
+            {hasApiKey && (
+              <button
+                onClick={handleRefreshModels}
+                disabled={isRefreshing || isLoadingModels}
+                className={cn(
+                  "flex items-center gap-1 text-xs px-2 py-1 rounded",
+                  "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                  "transition-colors",
+                  (isRefreshing || isLoadingModels) &&
+                    "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <RefreshCw
+                  className={cn(
+                    "w-3 h-3",
+                    (isRefreshing || isLoadingModels) && "animate-spin"
+                  )}
+                />
+                刷新模型
+              </button>
+            )}
+          </div>
 
-          <div className="space-y-4 px-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
             {/* API Key Section */}
             <div className="space-y-2">
               <Label htmlFor="api-key" className="text-sm font-medium">
@@ -127,6 +187,7 @@ export function ApiSettingsDialog() {
                   value={apiKey}
                   onChange={(e) => handleApiKeyChange(e.target.value)}
                   className="pr-10 h-9"
+                  placeholder="输入您的 API Key"
                 />
                 {apiKey && (
                   <button
@@ -158,6 +219,28 @@ export function ApiSettingsDialog() {
                 className="h-9"
               />
             </div>
+
+            {/* Model List Section */}
+            {hasApiKey && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">可用模型</Label>
+                <div className="border rounded-lg p-3 bg-muted/20">
+                  <ModelList
+                    provider={selectedProvider}
+                    models={currentProviderModels}
+                    isLoading={isLoadingModels}
+                    error={currentProviderError}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 提示信息 */}
+            {!hasApiKey && (
+              <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded">
+                输入 API Key 后将自动获取可用模型列表
+              </div>
+            )}
           </div>
         </div>
       </div>

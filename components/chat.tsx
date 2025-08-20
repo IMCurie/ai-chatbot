@@ -91,7 +91,7 @@ export default function Chat({ id }: { id: string }) {
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (input.trim()) {
+    if (input.trim() && model) {
       if (!existingChat) {
         createChat(id);
       }
@@ -113,11 +113,9 @@ export default function Chat({ id }: { id: string }) {
   return (
     <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
       <div className="flex-1">
-        {pathname.includes("/chat/") && (
-          <div className="px-4 pt-4">
-            <ModelSelector selectedModel={model} onModelChange={setModel} />
-          </div>
-        )}
+        <div className="px-4 pt-4">
+          <ModelSelector selectedModel={model} onModelChange={setModel} />
+        </div>
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
             {initialMessages.length === 0 ? (
@@ -136,6 +134,8 @@ export default function Chat({ id }: { id: string }) {
           onSubmit={handleFormSubmit}
           status={status}
           stop={stop}
+          disabled={!model}
+          placeholder={!model ? "请先在设置中配置API密钥并选择模型" : undefined}
         />
       </div>
     </div>
