@@ -87,7 +87,7 @@ export default function ModelSelector({
       {isOpen && (
         <div
           className={cn(
-            "absolute bottom-full left-0 mb-5 w-72",
+            "absolute top-full left-0 mt-2 w-72",
             "bg-white rounded-xl border border-neutral-200",
             "shadow-lg shadow-neutral-200/50",
             "max-h-96 overflow-y-auto",

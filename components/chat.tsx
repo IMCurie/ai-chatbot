@@ -6,12 +6,23 @@ import { MessageList } from "@/components/message-list";
 import Input from "@/components/input";
 import { useChatStore } from "@/lib/store";
 import { Greeting } from "@/components/greeting";
+import ModelSelector from "@/components/model-selector";
 import { v4 as uuidv4 } from "uuid";
 import { ModelProvider } from "@/lib/models";
+import { usePathname } from "next/navigation";
 
 export default function Chat({ id }: { id: string }) {
-  const { chats, addMessage, createChat, model, setModel, getApiKey, getApiBaseUrl } = useChatStore();
+  const {
+    chats,
+    addMessage,
+    createChat,
+    model,
+    setModel,
+    getApiKey,
+    getApiBaseUrl,
+  } = useChatStore();
   const [input, setInput] = useState("");
+  const pathname = usePathname();
 
   const existingChat = chats.find((chat) => chat.id === id);
   const initialMessages = existingChat?.messages || [];
@@ -19,30 +30,42 @@ export default function Chat({ id }: { id: string }) {
   // Get user API keys for the current model provider
   const getUserApiKeys = () => {
     const apiKeys: Record<string, string> = {};
-    const providers: ModelProvider[] = ["openai", "anthropic", "google", "openrouter", "grok"];
-    
-    providers.forEach(provider => {
+    const providers: ModelProvider[] = [
+      "openai",
+      "anthropic",
+      "google",
+      "openrouter",
+      "grok",
+    ];
+
+    providers.forEach((provider) => {
       const key = getApiKey(provider);
       if (key) {
         apiKeys[provider] = key;
       }
     });
-    
+
     return apiKeys;
   };
 
   // Get user API base URLs for the current model provider
   const getUserApiBaseUrls = () => {
     const baseUrls: Record<string, string> = {};
-    const providers: ModelProvider[] = ["openai", "anthropic", "google", "openrouter", "grok"];
-    
-    providers.forEach(provider => {
+    const providers: ModelProvider[] = [
+      "openai",
+      "anthropic",
+      "google",
+      "openrouter",
+      "grok",
+    ];
+
+    providers.forEach((provider) => {
       const baseUrl = getApiBaseUrl(provider);
       if (baseUrl) {
         baseUrls[provider] = baseUrl;
       }
     });
-    
+
     return baseUrls;
   };
 
@@ -90,6 +113,11 @@ export default function Chat({ id }: { id: string }) {
   return (
     <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
       <div className="flex-1">
+        {pathname.includes("/chat/") && (
+          <div className="px-4 pt-4">
+            <ModelSelector selectedModel={model} onModelChange={setModel} />
+          </div>
+        )}
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
             {initialMessages.length === 0 ? (
@@ -108,8 +136,6 @@ export default function Chat({ id }: { id: string }) {
           onSubmit={handleFormSubmit}
           status={status}
           stop={stop}
-          model={model}
-          onModelChange={setModel}
         />
       </div>
     </div>
