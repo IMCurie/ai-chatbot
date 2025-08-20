@@ -1,17 +1,18 @@
 import { Message } from "@/components/message";
 import Spinner from "@/components/spinner";
 import { ChatMessage } from "@/lib/store";
+import { UIMessage } from "ai";
 
 export function MessageList({
   messages,
   status,
 }: {
-  messages: ChatMessage[];
+  messages: UIMessage[];
   status: "ready" | "submitted" | "streaming" | "error";
 }) {
   return (
     <ul className="space-y-12">
-      {messages.map((message: ChatMessage) => {
+      {messages.map((message) => {
         return (
           <li key={message.id}>
             <Message message={message} />

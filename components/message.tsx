@@ -1,8 +1,8 @@
 import MemoizedMarkdown from "./enhance-markdown";
 import { cn } from "@/lib/utils";
-import { ChatMessage } from "@/lib/store";
+import { UIMessage } from "ai";
 
-export function Message({ message }: { message: ChatMessage }) {
+export function Message({ message }: { message: UIMessage }) {
   return (
     <div
       className={cn(

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useChat } from "@ai-sdk/react";
 import { MessageList } from "@/components/message-list";
 import Input from "@/components/input";
@@ -9,7 +9,6 @@ import { Greeting } from "@/components/greeting";
 import ModelSelector from "@/components/model-selector";
 import { v4 as uuidv4 } from "uuid";
 import { ModelProvider } from "@/lib/models";
-import { usePathname } from "next/navigation";
 
 export default function Chat({ id }: { id: string }) {
   const {
@@ -22,10 +21,9 @@ export default function Chat({ id }: { id: string }) {
     getApiBaseUrl,
   } = useChatStore();
   const [input, setInput] = useState("");
-  const pathname = usePathname();
 
   const existingChat = chats.find((chat) => chat.id === id);
-  const initialMessages = existingChat?.messages || [];
+  const initialChatMessages = useMemo(() => existingChat?.messages || [], [id]);
 
   // Get user API keys for the current model provider
   const getUserApiKeys = () => {
@@ -69,13 +67,14 @@ export default function Chat({ id }: { id: string }) {
     return baseUrls;
   };
 
-  const { status, stop, append } = useChat({
+  const { messages, status, stop, append } = useChat({
+    id,
     body: {
       model: model,
       apiKeys: getUserApiKeys(),
       baseUrls: getUserApiBaseUrls(),
     },
-    initialMessages: initialMessages,
+    initialMessages: initialChatMessages,
     onFinish: (message) => {
       if (id) {
         addMessage(id, {
@@ -97,14 +96,13 @@ export default function Chat({ id }: { id: string }) {
       }
 
       window.history.replaceState({}, "", `/chat/${id}`);
-
+      append({ role: "user", content: input.trim() });
       addMessage(id, {
         id: uuidv4(),
         createdAt: new Date(),
         role: "user",
         content: input.trim(),
       });
-      append({ role: "user", content: input.trim() });
     }
 
     setInput("");
@@ -118,10 +116,10 @@ export default function Chat({ id }: { id: string }) {
       <div className="flex-1">
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
-            {initialMessages.length === 0 ? (
+            {messages.length === 0 ? (
               <Greeting />
             ) : (
-              <MessageList messages={initialMessages} status={status} />
+              <MessageList messages={messages} status={status} />
             )}
           </div>
         </div>
