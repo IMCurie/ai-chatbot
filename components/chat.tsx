@@ -7,17 +7,50 @@ import Input from "@/components/input";
 import { useChatStore } from "@/lib/store";
 import { Greeting } from "@/components/greeting";
 import { v4 as uuidv4 } from "uuid";
+import { ModelProvider } from "@/lib/models";
 
 export default function Chat({ id }: { id: string }) {
-  const { chats, addMessage, createChat, model, setModel } = useChatStore();
+  const { chats, addMessage, createChat, model, setModel, getApiKey, getApiBaseUrl } = useChatStore();
   const [input, setInput] = useState("");
 
   const existingChat = chats.find((chat) => chat.id === id);
   const initialMessages = existingChat?.messages || [];
 
+  // Get user API keys for the current model provider
+  const getUserApiKeys = () => {
+    const apiKeys: Record<string, string> = {};
+    const providers: ModelProvider[] = ["openai", "anthropic", "google", "openrouter", "grok"];
+    
+    providers.forEach(provider => {
+      const key = getApiKey(provider);
+      if (key) {
+        apiKeys[provider] = key;
+      }
+    });
+    
+    return apiKeys;
+  };
+
+  // Get user API base URLs for the current model provider
+  const getUserApiBaseUrls = () => {
+    const baseUrls: Record<string, string> = {};
+    const providers: ModelProvider[] = ["openai", "anthropic", "google", "openrouter", "grok"];
+    
+    providers.forEach(provider => {
+      const baseUrl = getApiBaseUrl(provider);
+      if (baseUrl) {
+        baseUrls[provider] = baseUrl;
+      }
+    });
+    
+    return baseUrls;
+  };
+
   const { status, stop, append } = useChat({
     body: {
       model: model,
+      apiKeys: getUserApiKeys(),
+      baseUrls: getUserApiBaseUrls(),
     },
     initialMessages: initialMessages,
     onFinish: (message) => {
