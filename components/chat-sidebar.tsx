@@ -30,12 +30,34 @@ export default function ChatSidebar() {
     }
   };
 
+  const handleNewChat = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Preserve new-tab/middle-click/modifier-click behavior
+    if (
+      e.defaultPrevented ||
+      e.button !== 0 ||
+      e.metaKey ||
+      e.altKey ||
+      e.ctrlKey ||
+      e.shiftKey
+    ) {
+      return;
+    }
+
+    e.preventDefault();
+    if (pathname === "/") {
+      router.refresh();
+    } else {
+      router.push("/");
+    }
+  };
+
   return (
     <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
         <Link
           href="/"
+          onClick={handleNewChat}
           className="w-full bg-sidebar-primary hover:bg-sidebar-primary/90 text-sidebar-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
         >
           <Plus className="w-4 h-4" />
