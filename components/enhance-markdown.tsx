@@ -121,7 +121,8 @@ const MarkdownComponents: Components = {
     <Code className={className}>{children}</Code>
   ),
 
-  pre: ({ children }) => <pre className="mb-5">{children}</pre>,
+  // Use the Code component to render the full block; avoid wrapping with another <pre>
+  pre: ({ children }) => <>{children}</>,
 };
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {

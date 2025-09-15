@@ -14,7 +14,7 @@ const Code = memo(
     children?: React.ReactNode;
     className?: string;
   }) => {
-    const match = /language-(\w+)/.exec(className || "");
+    const match = /language-([\w-]+)/.exec(className || "");
     const lang = match ? match[1] : "text";
     const code = String(children || "").replace(/(\r?\n)$/, "");
     const blockCache = useRef<Map<string, string>>(new Map());
@@ -39,7 +39,7 @@ const Code = memo(
       const currentLine = chunkLines[n - 1];
 
       if (!highlighterReady) {
-        return code;
+        return "";
       }
 
       const highlightCompleteLines = () => {
@@ -61,7 +61,9 @@ const Code = memo(
 
         if (completeLines.length > 0) {
           const contextCode = completeLines.join("\n");
-          return highlightSync(currentLine, lang, contextCode);
+          const html = highlightSync(currentLine, lang, contextCode);
+          // Insert a single line break before the current line
+          return `<br>${html}`;
         }
 
         return currentLine;
@@ -72,8 +74,7 @@ const Code = memo(
       );
 
       const joinedParts = parts.join("");
-
-      return <div dangerouslySetInnerHTML={{ __html: joinedParts }} />;
+      return joinedParts;
     }, [code, lang, highlighterReady]);
 
     if (match) {
@@ -84,9 +85,16 @@ const Code = memo(
             "mt-2 mb-4 rounded-lg border border-neutral-200 bg-white overflow-hidden w-full"
           )}
         >
-          <div className="p-4 overflow-x-auto font-mono text-sm">
-            {renderedContent}
-          </div>
+          <pre className="p-4 overflow-x-auto font-mono text-sm whitespace-pre">
+            {highlighterReady ? (
+              <code
+                className={cn(`language-${lang}`)}
+                dangerouslySetInnerHTML={{ __html: renderedContent as string }}
+              />
+            ) : (
+              <code className={cn(`language-${lang}`)}>{code}</code>
+            )}
+          </pre>
         </div>
       );
     }

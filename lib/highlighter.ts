@@ -11,6 +11,11 @@ const highlighterPromise = createHighlighterCore({
     import("@shikijs/langs/javascript"),
     import("@shikijs/langs/markdown"),
     import("@shikijs/langs/jsx"),
+    import("@shikijs/langs/tsx"),
+    import("@shikijs/langs/json"),
+    import("@shikijs/langs/html"),
+    import("@shikijs/langs/css"),
+    import("@shikijs/langs/yaml"),
     import("@shikijs/langs/bash"),
     import("@shikijs/langs/python"),
     import("@shikijs/langs/cpp"),
@@ -47,6 +52,8 @@ export const highlightSync = (
     return highlighterInstance.codeToHtml(code, {
       lang: lang,
       theme: "github-light",
+      // Output inline tokens so we can compose a single <pre><code> container during streaming
+      structure: "inline",
       ...(contextCode && { grammarContextCode: contextCode }),
     });
   } catch (error) {
