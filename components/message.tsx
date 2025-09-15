@@ -15,13 +15,13 @@ export function Message({ message }: { message: UIMessage }) {
       <div
         className={cn(
           "rounded-3xl",
-          message.role === "user" ? "bg-neutral-100 px-4 py-2" : "py-0.5 w-full"
+          message.role === "user" ? "bg-secondary text-secondary-foreground px-4 py-2" : "py-0.5 w-full"
         )}
       >
         {message.role === "assistant" ? (
           <MemoizedMarkdown content={message.content} id={message.id} />
         ) : (
-          <div className="text-black">{message.content}</div>
+          <div className="text-foreground">{message.content}</div>
         )}
       </div>
     </div>

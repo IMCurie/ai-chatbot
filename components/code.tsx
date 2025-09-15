@@ -1,3 +1,5 @@
+"use client";
+
 import { memo, useMemo, useRef, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +22,7 @@ const Code = memo(
     // Keep only the latest cached complete block to avoid unbounded growth
     const lastBlockCache = useRef<{ key: string; html: string } | null>(null);
     const [highlighterReady, setHighlighterReady] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
       const initializeHighlighter = async () => {
@@ -49,7 +52,10 @@ const Code = memo(
         const completeLinesCode = completeLines.join("\n");
         const cacheKey = `${lang}-${completeLinesCode}`;
 
-        if (!lastBlockCache.current || lastBlockCache.current.key !== cacheKey) {
+        if (
+          !lastBlockCache.current ||
+          lastBlockCache.current.key !== cacheKey
+        ) {
           const highlighted = highlightSync(completeLinesCode, lang);
           lastBlockCache.current = { key: cacheKey, html: highlighted };
         }
@@ -84,9 +90,26 @@ const Code = memo(
         <div
           className={cn(
             className,
-            "mt-2 mb-4 rounded-lg border border-neutral-200 bg-white overflow-hidden w-full"
+            "relative group mt-2 mb-4 rounded-lg border border-border bg-card overflow-hidden w-full"
           )}
         >
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              try {
+                await navigator.clipboard.writeText(code);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1500);
+              } catch (_) {
+                // noop
+              }
+            }}
+            aria-label={copied ? "Copied" : "Copy code"}
+            className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 focus:opacity-100 inline-flex items-center rounded px-1.5 py-0.5 text-[11px] text-muted-foreground bg-transparent hover:bg-muted/40 hover:text-foreground transition-opacity transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
           <pre className="p-4 overflow-x-auto font-mono text-sm whitespace-pre">
             {highlighterReady ? (
               <code
@@ -104,7 +127,7 @@ const Code = memo(
     return (
       <code
         className={cn(
-          "bg-gray-100 px-1 py-0.5 rounded text-sm font-mono",
+          "bg-muted text-foreground px-1 py-0.5 rounded text-sm font-mono",
           className
         )}
       >

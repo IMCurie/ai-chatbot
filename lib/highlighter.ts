@@ -5,7 +5,10 @@ let highlighterInstance: any = null;
 let isInitializing = false;
 
 const highlighterPromise = createHighlighterCore({
-  themes: [import("@shikijs/themes/github-light")],
+  themes: [
+    import("@shikijs/themes/github-light"),
+    import("@shikijs/themes/github-dark"),
+  ],
   langs: [
     import("@shikijs/langs/typescript"),
     import("@shikijs/langs/javascript"),
@@ -44,6 +47,20 @@ export const highlightSync = (
   lang: string,
   contextCode?: string
 ): string => {
+  const getTheme = () => {
+    try {
+      if (typeof document !== "undefined") {
+        const root = document.documentElement;
+        const prefersDark =
+          typeof window !== "undefined" &&
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const isDark = root.classList.contains("dark") || prefersDark;
+        return isDark ? "github-dark" : "github-light";
+      }
+    } catch {}
+    return "github-light";
+  };
   if (!highlighterInstance) {
     // Escape to avoid injecting raw HTML when highlighter is not ready
     return code
@@ -56,7 +73,7 @@ export const highlightSync = (
   try {
     return highlighterInstance.codeToHtml(code, {
       lang: lang || "text",
-      theme: "github-light",
+      theme: getTheme(),
       // Output inline tokens so we can compose a single <pre><code> container during streaming
       structure: "inline",
       ...(contextCode && { grammarContextCode: contextCode }),
