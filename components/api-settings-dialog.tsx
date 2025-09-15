@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Eye, EyeOff, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelProvider, getModelsByProvider } from "@/lib/models";
@@ -56,6 +56,7 @@ export function ApiSettingsDialog() {
   const [apiBaseUrl, setApiBaseUrlValue] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const providers: ModelProvider[] = [
     "openai",
@@ -77,10 +78,13 @@ export function ApiSettingsDialog() {
     setApiKeyValue(value);
     setApiKey(selectedProvider, value);
 
-    // 如果输入了有效的API Key，自动获取模型
+    // 如果输入了有效的API Key，防抖后获取模型，避免频繁请求
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
     if (value.trim()) {
-      // 短暂延迟后获取模型，避免频繁请求
-      setTimeout(() => {
+      debounceRef.current = setTimeout(() => {
         fetchModels();
       }, 500);
     }

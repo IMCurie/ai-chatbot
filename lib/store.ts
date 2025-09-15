@@ -3,6 +3,9 @@ import { persist } from "zustand/middleware";
 import { Model, ModelProvider } from "./models";
 import CryptoJS from "crypto-js";
 
+// Deduplicate concurrent model fetches
+let modelsFetchInFlight: Promise<void> | null = null;
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -179,9 +182,6 @@ export const useChatStore = create<ChatStore>()(
           
           return { apiKeys: newApiKeys };
         });
-        
-        // 当API密钥更新后，重新获取模型
-        get().fetchModels();
       },
 
       getApiKey: (provider: ModelProvider) => {
@@ -263,6 +263,9 @@ export const useChatStore = create<ChatStore>()(
 
       // Dynamic model management
       fetchModels: async () => {
+        if (modelsFetchInFlight) return modelsFetchInFlight;
+        
+        modelsFetchInFlight = (async () => {
         const state = get();
         
         // 收集所有已配置的API密钥
@@ -345,6 +348,13 @@ export const useChatStore = create<ChatStore>()(
             isLoadingModels: false,
             modelErrors: { general: "Failed to fetch models" },
           });
+        }
+        })();
+
+        try {
+          await modelsFetchInFlight;
+        } finally {
+          modelsFetchInFlight = null;
         }
       },
 

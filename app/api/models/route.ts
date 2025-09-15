@@ -1,6 +1,21 @@
 import { NextRequest } from "next/server";
 import { Model, ModelProvider } from "@/lib/models";
 
+// Basic fetch timeout helper to avoid hanging on slow providers
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 5000
+) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { apiKeys } = await req.json();
@@ -54,7 +69,7 @@ async function fetchModelsForProvider(provider: ModelProvider, apiKey: string): 
 }
 
 async function fetchOpenAIModels(apiKey: string): Promise<Model[]> {
-  const response = await fetch("https://api.openai.com/v1/models", {
+  const response = await fetchWithTimeout("https://api.openai.com/v1/models", {
     headers: {
       "Authorization": `Bearer ${apiKey}`,
     },
@@ -74,7 +89,7 @@ async function fetchOpenAIModels(apiKey: string): Promise<Model[]> {
 }
 
 async function fetchAnthropicModels(apiKey: string): Promise<Model[]> {
-  const response = await fetch("https://api.anthropic.com/v1/models", {
+  const response = await fetchWithTimeout("https://api.anthropic.com/v1/models", {
     headers: {
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
@@ -95,7 +110,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<Model[]> {
 }
 
 async function fetchGoogleModels(apiKey: string): Promise<Model[]> {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
 
   if (!response.ok) {
     throw new Error(`Google AI API error: ${response.status}`);
@@ -117,7 +132,7 @@ async function fetchGoogleModels(apiKey: string): Promise<Model[]> {
 }
 
 async function fetchOpenRouterModels(apiKey: string): Promise<Model[]> {
-  const response = await fetch("https://openrouter.ai/api/v1/models", {
+  const response = await fetchWithTimeout("https://openrouter.ai/api/v1/models", {
     headers: {
       "Authorization": `Bearer ${apiKey}`,
     },
@@ -137,7 +152,7 @@ async function fetchOpenRouterModels(apiKey: string): Promise<Model[]> {
 }
 
 async function fetchXAIModels(apiKey: string): Promise<Model[]> {
-  const response = await fetch("https://api.x.ai/v1/models", {
+  const response = await fetchWithTimeout("https://api.x.ai/v1/models", {
     headers: {
       "Authorization": `Bearer ${apiKey}`,
     },
