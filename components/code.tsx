@@ -17,7 +17,8 @@ const Code = memo(
     const match = /language-([\w-]+)/.exec(className || "");
     const lang = match ? match[1] : "text";
     const code = String(children || "").replace(/(\r?\n)$/, "");
-    const blockCache = useRef<Map<string, string>>(new Map());
+    // Keep only the latest cached complete block to avoid unbounded growth
+    const lastBlockCache = useRef<{ key: string; html: string } | null>(null);
     const [highlighterReady, setHighlighterReady] = useState(false);
 
     useEffect(() => {
@@ -48,12 +49,12 @@ const Code = memo(
         const completeLinesCode = completeLines.join("\n");
         const cacheKey = `${lang}-${completeLinesCode}`;
 
-        if (!blockCache.current.has(cacheKey)) {
+        if (!lastBlockCache.current || lastBlockCache.current.key !== cacheKey) {
           const highlighted = highlightSync(completeLinesCode, lang);
-          blockCache.current.set(cacheKey, highlighted);
+          lastBlockCache.current = { key: cacheKey, html: highlighted };
         }
 
-        return blockCache.current.get(cacheKey) || "";
+        return lastBlockCache.current?.html || "";
       };
 
       const highlightCurrentLine = () => {
@@ -66,7 +67,8 @@ const Code = memo(
           return `<br>${html}`;
         }
 
-        return currentLine;
+        // When there is no context, still escape current line via highlighter util
+        return highlightSync(currentLine, lang);
       };
 
       const parts = [highlightCompleteLines(), highlightCurrentLine()].filter(

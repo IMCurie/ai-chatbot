@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Code from "./code";
+import React from "react";
 
 const MarkdownComponents: Components = {
   h1: ({ children }) => (
@@ -117,12 +118,24 @@ const MarkdownComponents: Components = {
     </td>
   ),
 
+  // Inline code: render as plain <code>, block code handled via `pre` below
   code: ({ children, className }) => (
-    <Code className={className}>{children}</Code>
+    <code className={className}>{children}</code>
   ),
 
-  // Use the Code component to render the full block; avoid wrapping with another <pre>
-  pre: ({ children }) => <>{children}</>,
+  // Block code: extract the inner <code> and delegate to <Code/>
+  pre: ({ children }) => {
+    const child = Array.isArray(children) ? children[0] : children;
+    if (React.isValidElement(child)) {
+      const el = child as React.ReactElement<any>;
+      const props = (el.props || {}) as { className?: string; children?: React.ReactNode };
+      const childClass = props.className || "language-text";
+      const raw = props.children as unknown;
+      const childContent = Array.isArray(raw) ? raw.join("") : (raw as string | undefined);
+      return <Code className={childClass}>{(childContent ?? "") as string}</Code>;
+    }
+    return <pre>{children}</pre>;
+  },
 };
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {

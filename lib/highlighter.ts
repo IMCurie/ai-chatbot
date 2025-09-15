@@ -45,12 +45,17 @@ export const highlightSync = (
   contextCode?: string
 ): string => {
   if (!highlighterInstance) {
-    return code;
+    // Escape to avoid injecting raw HTML when highlighter is not ready
+    return code
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 
   try {
     return highlighterInstance.codeToHtml(code, {
-      lang: lang,
+      lang: lang || "text",
       theme: "github-light",
       // Output inline tokens so we can compose a single <pre><code> container during streaming
       structure: "inline",
@@ -58,7 +63,12 @@ export const highlightSync = (
     });
   } catch (error) {
     console.error("Highlighting error:", error);
-    return code;
+    // Escape on error to avoid XSS
+    return code
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
   }
 };
 
