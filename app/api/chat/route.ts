@@ -15,12 +15,14 @@ function getProvider(model: Model, userApiKeys?: ApiKeys, userBaseUrls?: ApiBase
   const getApiKey = (provider: string, envKey: string) => {
     const userKey = userApiKeys?.[provider as keyof ApiKeys];
     const envValue = process.env[envKey];
+    const isProd = process.env.NODE_ENV === "production";
     
     if (userKey && userKey.trim()) {
       return userKey.trim();
     }
     
-    if (envValue && envValue.trim()) {
+    // In development, allow falling back to server env vars for convenience
+    if (!isProd && envValue && envValue.trim()) {
       return envValue.trim();
     }
     

@@ -281,8 +281,10 @@ export const useChatStore = create<ChatStore>()(
           }
         });
 
-        // 如果没有配置任何API密钥，清空模型列表
-        if (Object.keys(apiKeys).length === 0) {
+        // 在生产环境：没有任何用户密钥则不请求，清空模型列表
+        // 在开发环境：即使没有用户密钥也继续请求，由服务端在开发环境回退到 env 变量
+        const isProd = process.env.NODE_ENV === "production";
+        if (Object.keys(apiKeys).length === 0 && isProd) {
           set({
             availableModels: [],
             model: null,
@@ -300,7 +302,7 @@ export const useChatStore = create<ChatStore>()(
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ apiKeys }),
+            body: JSON.stringify(Object.keys(apiKeys).length > 0 ? { apiKeys } : {}),
           });
 
           if (!response.ok) {
