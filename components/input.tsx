@@ -36,90 +36,80 @@ export default function Input({
   const showNetworkSearchControls =
     typeof onToggleNetworkSearch === "function" && showNetworkSearchToggle;
 
+  const networkToggleLabel = networkSearchEnabled ? "关闭联网搜索" : "开启联网搜索";
+
   return (
-    <div className="relative backdrop-blur-md bg-white/80 border border-neutral-200/50 shadow-lg rounded-3xl">
-      <div className="flex items-end px-5 pt-3 pb-3 gap-3">
-        <form
-          ref={formRef}
-          onSubmit={onSubmit}
-          className="flex w-full flex-col gap-3"
-        >
-          {showNetworkSearchControls && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Globe className="h-4 w-4" />
-                <span className="font-medium text-foreground">联网搜索</span>
-                {networkSearchLoading && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                {!networkSearchAvailable && (
-                  <span className="text-xs text-muted-foreground">
-                    请在设置中配置 Tavily API Key
-                  </span>
-                )}
+    <div className="relative rounded-3xl border border-neutral-200/50 bg-white/80 shadow-lg backdrop-blur-md">
+      <form ref={formRef} onSubmit={onSubmit} className="flex w-full flex-col">
+        <div className="px-5 pt-4">
+          <textarea
+            value={inputValue}
+            onChange={onInputChange}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={cn(
+              "w-full resize-none bg-transparent py-2 text-base leading-6 text-neutral-900 placeholder-neutral-500 outline-none",
+              "min-h-[64px] max-h-32",
+              disabled && "cursor-not-allowed opacity-50"
+            )}
+            rows={3}
+            onInput={(event) => {
+              const target = event.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = `${Math.max(target.scrollHeight, 64)}px`;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey && hasInput && !disabled) {
+                event.preventDefault();
+                formRef.current?.requestSubmit();
+              }
+            }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {showNetworkSearchControls && (
+              <>
                 <button
                   type="button"
                   onClick={() =>
-                    networkSearchAvailable &&
-                    onToggleNetworkSearch?.(!networkSearchEnabled)
+                    networkSearchAvailable && onToggleNetworkSearch?.(!networkSearchEnabled)
                   }
                   className={cn(
-                    "relative inline-flex h-6 w-12 items-center rounded-full transition-colors",
-                    networkSearchEnabled ? "bg-primary" : "bg-muted",
+                    "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+                    networkSearchEnabled
+                      ? "border-blue-500 bg-blue-50 text-blue-600 shadow-sm"
+                      : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100",
                     !networkSearchAvailable && "cursor-not-allowed opacity-40"
                   )}
                   aria-pressed={networkSearchEnabled}
-                  aria-label="切换联网搜索"
+                  aria-label={networkToggleLabel}
+                  title={networkToggleLabel}
                   disabled={!networkSearchAvailable}
                 >
-                  <span
-                    className={cn(
-                      "inline-block h-4 w-4 rounded-full bg-background transition-transform",
-                      networkSearchEnabled ? "translate-x-6" : "translate-x-1"
-                    )}
-                  />
+                  <Globe className="h-4 w-4" />
+                  {networkSearchLoading && (
+                    <Loader2 className="absolute inset-0 m-auto h-3 w-3 animate-spin text-current" />
+                  )}
+                  <span className="sr-only">{networkToggleLabel}</span>
                 </button>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <textarea
-                value={inputValue}
-                onChange={onInputChange}
-                placeholder={placeholder}
-                disabled={disabled}
-                className={`w-full bg-transparent text-neutral-900 placeholder-neutral-500 text-base outline-none resize-none min-h-[64px] max-h-32 py-2 leading-6 ${
-                  disabled ? "cursor-not-allowed opacity-50" : ""
-                }`}
-                rows={3}
-                onInput={(e) => {
-                const target = e.target as HTMLTextAreaElement;
-                target.style.height = "auto";
-                target.style.height = `${Math.max(target.scrollHeight, 64)}px`;
-              }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && hasInput && !disabled) {
-                    e.preventDefault();
-                    formRef.current?.requestSubmit();
-                  }
-                }}
-              />
+                {!networkSearchAvailable && (
+                  <span className="text-xs">请在设置中配置 Tavily API Key</span>
+                )}
+              </>
+            )}
           </div>
 
-          <div className="flex-shrink-0">
+          <div className="flex items-center gap-3">
             {status === "submitted" || status === "streaming" ? (
               <StopButton stop={stop} />
             ) : (
               <SendButton disabled={!hasInput || disabled} />
             )}
           </div>
-          </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }

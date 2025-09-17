@@ -9,12 +9,15 @@ import { Greeting } from "@/components/greeting";
 import Input from "@/components/input";
 import { MessageList } from "@/components/message-list";
 import ModelSelector from "@/components/model-selector";
-import SearchResultsPanel, {
-  type SearchResultItem,
-} from "@/components/search-results-panel";
+import {
+  SearchFlowCard,
+  type SearchSession,
+  type SearchSessionMeta,
+} from "@/components/search-flow-card";
 import { ModelProvider } from "@/lib/models";
 import { useChatStore } from "@/lib/store";
 import { getMessageText } from "@/lib/ui-message";
+import type { SearchResultItem } from "@/lib/search";
 
 const PROVIDERS: ModelProvider[] = [
   "openai",
@@ -36,13 +39,6 @@ export default function Chat({ id }: { id: string }) {
     getTavilyApiKey,
     getSearchExtensionConfig,
   } = useChatStore();
-  const [input, setInput] = useState("");
-  const [isNetworkSearchEnabled, setIsNetworkSearchEnabled] = useState(false);
-  const [isFetchingSearch, setIsFetchingSearch] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-  const [lastSearchQuery, setLastSearchQuery] = useState("");
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
 
   const tavilyApiKey = getTavilyApiKey();
   const hasTavilyKey = Boolean(tavilyApiKey);
@@ -51,16 +47,20 @@ export default function Chat({ id }: { id: string }) {
     queryLanguage: searchLanguage,
     excludeWebsites: searchExcludeWebsites,
     maxResults: searchMaxResults,
+    queryModelProvider: searchModelProvider,
+    queryModelId: searchModelId,
   } = searchConfig;
 
+  const [input, setInput] = useState("");
+  const [isNetworkSearchEnabled, setIsNetworkSearchEnabled] = useState(false);
+  const [searchSessions, setSearchSessions] = useState<SearchSession[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
+
   useEffect(() => {
-    if (!hasTavilyKey && isNetworkSearchEnabled) {
+    if (!hasTavilyKey) {
       setIsNetworkSearchEnabled(false);
-      setSearchResults([]);
-      setLastSearchQuery("");
-      setSearchError(null);
     }
-  }, [hasTavilyKey, isNetworkSearchEnabled]);
+  }, [hasTavilyKey]);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -147,7 +147,7 @@ export default function Chat({ id }: { id: string }) {
     results: SearchResultItem[];
   }
 
-  const runTavilySearch = useCallback(
+  const fetchTavilySearch = useCallback(
     async (query: string): Promise<TavilySearchResponse> => {
       const response = await fetch("/api/extensions/tavily-search", {
         method: "POST",
@@ -228,34 +228,69 @@ export default function Chat({ id }: { id: string }) {
       | undefined;
 
     if (isNetworkSearchEnabled && hasTavilyKey) {
-      setIsFetchingSearch(true);
-      setSearchError(null);
+      const sessionMeta: SearchSessionMeta = {
+        providerLabel: "tavily",
+        modelProvider: searchModelProvider,
+        modelId: searchModelId,
+        language: searchLanguage,
+        excludeWebsites: searchExcludeWebsites,
+        maxResults: searchMaxResults,
+      };
+
+      setSearchSessions((prev) => [
+        ...prev,
+        {
+          messageId,
+          query: trimmed,
+          status: "processing",
+          results: [],
+          expanded: false,
+          meta: sessionMeta,
+        },
+      ]);
+
       try {
-        const searchResponse = await runTavilySearch(trimmed);
-        setSearchResults(searchResponse.results);
-        setLastSearchQuery(searchResponse.query);
+        const searchResponse = await fetchTavilySearch(trimmed);
+        setSearchSessions((prev) =>
+          prev.map((session) =>
+            session.messageId === messageId
+              ? {
+                  ...session,
+                  status: "complete",
+                  results: searchResponse.results,
+                  expanded: false,
+                }
+              : session
+          )
+        );
+
         searchPayload = {
-          provider: "Tavily 搜索",
+          provider: sessionMeta.providerLabel,
           query: searchResponse.query,
           results: searchResponse.results,
-          language: searchLanguage,
-          maxResults: searchMaxResults,
-          excludeWebsites: searchExcludeWebsites,
+          language: sessionMeta.language,
+          maxResults: sessionMeta.maxResults,
+          excludeWebsites: sessionMeta.excludeWebsites,
         };
       } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "联网搜索失败，请稍后重试";
+
         console.error("Tavily search error", error);
-        setSearchResults([]);
-        setLastSearchQuery(trimmed);
-        setSearchError(
-          error instanceof Error ? error.message : "联网搜索失败，请稍后重试"
+        setSearchSessions((prev) =>
+          prev.map((session) =>
+            session.messageId === messageId
+              ? {
+                  ...session,
+                  status: "error",
+                  error: message,
+                }
+              : session
+          )
         );
-      } finally {
-        setIsFetchingSearch(false);
       }
-    } else {
-      setSearchResults([]);
-      setLastSearchQuery("");
-      setSearchError(null);
     }
 
     await sendMessage(
@@ -268,21 +303,80 @@ export default function Chat({ id }: { id: string }) {
     );
   };
 
-  const handleNetworkSearchToggle = (next: boolean) => {
-    if (!hasTavilyKey) {
-      setSearchError("请先在设置中保存 Tavily API Key");
-      setIsNetworkSearchEnabled(false);
-      return;
-    }
+  const handleNetworkSearchToggle = useCallback(
+    (nextValue?: boolean) => {
+      if (!hasTavilyKey) {
+        return;
+      }
+      setIsNetworkSearchEnabled((prev) =>
+        typeof nextValue === "boolean" ? nextValue : !prev
+      );
+    },
+    [hasTavilyKey]
+  );
 
-    setIsNetworkSearchEnabled(next);
+  const handleToggleSearchSession = useCallback((messageId: string) => {
+    setSearchSessions((prev) =>
+      prev.map((session) =>
+        session.messageId === messageId
+          ? { ...session, expanded: !session.expanded }
+          : session
+      )
+    );
+  }, []);
 
-    if (!next) {
-      setSearchResults([]);
-      setLastSearchQuery("");
-      setSearchError(null);
-    }
-  };
+  const handleRetrySearchSession = useCallback(
+    async (messageId: string) => {
+      let queryToRetry = "";
+
+      setSearchSessions((prev) => {
+        const target = prev.find((session) => session.messageId === messageId);
+        if (target) {
+          queryToRetry = target.query;
+        }
+
+        return prev.map((session) =>
+          session.messageId === messageId
+            ? { ...session, status: "processing", error: undefined }
+            : session
+        );
+      });
+
+      if (!queryToRetry) {
+        return;
+      }
+
+      try {
+        const searchResponse = await fetchTavilySearch(queryToRetry);
+        setSearchSessions((prev) =>
+          prev.map((session) =>
+            session.messageId === messageId
+              ? {
+                  ...session,
+                  status: "complete",
+                  results: searchResponse.results,
+                  expanded: true,
+                }
+              : session
+          )
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "联网搜索失败，请稍后重试";
+
+        setSearchSessions((prev) =>
+          prev.map((session) =>
+            session.messageId === messageId
+              ? { ...session, status: "error", error: message }
+              : session
+          )
+        );
+      }
+    },
+    [fetchTavilySearch]
+  );
 
   return (
     <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
@@ -292,23 +386,21 @@ export default function Chat({ id }: { id: string }) {
       <div className="flex-1">
         <div className="max-w-3xl mx-auto">
           <div className="py-10 pb-32">
-            {searchResults.length > 0 && (
-              <SearchResultsPanel
-                providerLabel="Tavily 搜索"
-                query={lastSearchQuery}
-                results={searchResults}
-                isStreaming={status === "streaming"}
-              />
-            )}
-            {searchError && (
-              <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {searchError}
-              </div>
-            )}
             {messages.length === 0 ? (
               <Greeting />
             ) : (
-              <MessageList messages={messages} status={status} />
+              <MessageList
+                messages={messages}
+                status={status}
+                searchSessions={searchSessions}
+                renderSearchCard={(session) => (
+                  <SearchFlowCard
+                    session={session}
+                    onToggleExpanded={handleToggleSearchSession}
+                    onRetry={handleRetrySearchSession}
+                  />
+                )}
+              />
             )}
           </div>
         </div>
@@ -326,7 +418,9 @@ export default function Chat({ id }: { id: string }) {
           networkSearchEnabled={isNetworkSearchEnabled}
           onToggleNetworkSearch={handleNetworkSearchToggle}
           networkSearchAvailable={hasTavilyKey}
-          networkSearchLoading={isFetchingSearch}
+          networkSearchLoading={searchSessions.some(
+            (session) => session.status === "processing"
+          )}
           showNetworkSearchToggle={isHydrated}
         />
       </div>

@@ -4,15 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-
-export type SearchResultItem = {
-  id: string;
-  index: number;
-  title: string;
-  url: string;
-  snippet?: string;
-  score?: number;
-};
+import type { SearchResultItem } from "@/lib/search";
 
 interface SearchResultsPanelProps {
   providerLabel?: string;
