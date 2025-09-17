@@ -21,11 +21,30 @@ type ProviderModelInstance =
 import { Model } from "@/lib/models";
 import { ApiKeys, ApiBaseUrls } from "@/lib/store";
 
+interface SearchResultPayload {
+  id: string;
+  index: number;
+  title: string;
+  url: string;
+  snippet?: string;
+  score?: number;
+}
+
+interface NetworkSearchPayload {
+  provider?: string;
+  query: string;
+  results?: SearchResultPayload[];
+  language?: string;
+  maxResults?: number;
+  excludeWebsites?: string;
+}
+
 interface ChatRequestBody {
   messages?: UIMessage[];
   model?: Model;
   apiKeys?: ApiKeys;
   baseUrls?: ApiBaseUrls;
+  search?: NetworkSearchPayload | null;
 }
 
 // Allow streaming responses up to 30 seconds
@@ -123,7 +142,8 @@ function getProvider(
 
 export async function POST(req: Request) {
   const body = (await req.json()) as unknown;
-  const { messages, model, apiKeys, baseUrls } = (body ?? {}) as ChatRequestBody;
+  const { messages, model, apiKeys, baseUrls, search } =
+    (body ?? {}) as ChatRequestBody;
 
   if (!model || !model.id || !model.provider) {
     return new Response("Model information is required", { status: 400 });
@@ -135,9 +155,61 @@ export async function POST(req: Request) {
     const uiMessages: UIMessage[] = Array.isArray(messages) ? messages : [];
     const modelMessages = convertToModelMessages(uiMessages);
 
+    const baseSystemPrompt = "You are a helpful assistant.";
+    const searchResults = Array.isArray(search?.results)
+      ? search.results.filter((result): result is SearchResultPayload => {
+          return (
+            !!result &&
+            typeof result.id === "string" &&
+            typeof result.title === "string" &&
+            typeof result.url === "string"
+          );
+        })
+      : [];
+
+    let systemPrompt = baseSystemPrompt;
+
+    if (search?.query && searchResults.length > 0) {
+      const providerLabel = search.provider?.trim() || "web search";
+      const metaParts: string[] = [];
+      if (search.language) {
+        metaParts.push(`language ${search.language}`);
+      }
+      if (search.maxResults) {
+        metaParts.push(`top ${search.maxResults}`);
+      }
+      if (search.excludeWebsites) {
+        metaParts.push(`excluding ${search.excludeWebsites}`);
+      }
+      const providerDetails =
+        metaParts.length > 0
+          ? `${providerLabel} (${metaParts.join(", ")})`
+          : providerLabel;
+      const formattedRows = searchResults
+        .slice(0, 10)
+        .map((result, idx) => {
+          const ordinal = idx + 1;
+          const title = result.title.trim();
+          const url = result.url.trim();
+          const score =
+            typeof result.score === "number" && !Number.isNaN(result.score)
+              ? ` (relevance ${result.score.toFixed(2)})`
+              : "";
+          const snippet = result.snippet
+            ?.replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 320);
+          const snippetSuffix = snippet ? ` — ${snippet}` : "";
+          return `[${ordinal}] ${title} <${url}>${score}${snippetSuffix}`;
+        })
+        .join("\n");
+
+      systemPrompt = `${baseSystemPrompt}\n\nYou have access to the following ${providerDetails} results collected for the latest user request "${search.query}". Use them to ground your answer when relevant. Cite sources inline using [index] references, e.g. [1]. If the results are insufficient or conflicting, acknowledge it.\n\nSearch results:\n${formattedRows}`;
+    }
+
     const result = streamText({
       model: provider,
-      system: "You are a helpful assistant.",
+      system: systemPrompt,
       messages: modelMessages,
     });
 

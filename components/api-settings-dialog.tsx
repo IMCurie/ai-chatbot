@@ -6,7 +6,10 @@ import {
   useRef,
   ReactNode,
   useMemo,
+  useCallback,
   useTransition,
+  type FocusEvent,
+  type KeyboardEvent,
 } from "react";
 import {
   Cog,
@@ -26,6 +29,7 @@ import {
   type LucideIcon,
   Sparkle,
   Bot,
+  HelpCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelProvider, getModelsByProvider } from "@/lib/models";
@@ -97,6 +101,74 @@ const settingsSections: SettingsSection[] = [
   },
 ];
 
+type ExtensionTabId = "search";
+
+type ExtensionTab = {
+  id: ExtensionTabId;
+  label: string;
+  description: string;
+};
+
+const extensionTabs: ExtensionTab[] = [
+  {
+    id: "search",
+    label: "Search",
+    description: "Configure online search integrations and behaviour",
+  },
+];
+
+type SearchModelOption = {
+  value: string;
+  label: string;
+};
+
+type SearchModelProviderOption = {
+  value: string;
+  label: string;
+  models: SearchModelOption[];
+};
+
+const SEARCH_MODEL_PROVIDERS: SearchModelProviderOption[] = [
+  {
+    value: "google",
+    label: "Google AI",
+    models: [
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
+    ],
+  },
+  {
+    value: "openai",
+    label: "OpenAI",
+    models: [
+      { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+      { value: "gpt-4o-mini", label: "GPT-4o Mini" },
+      { value: "gpt-4.1", label: "GPT-4.1" },
+    ],
+  },
+  {
+    value: "anthropic",
+    label: "Anthropic",
+    models: [
+      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet" },
+      { value: "claude-3-haiku", label: "Claude 3 Haiku" },
+      { value: "claude-3-opus", label: "Claude 3 Opus" },
+    ],
+  },
+];
+
+const SEARCH_LANGUAGE_OPTIONS = [
+  { value: "en-US", label: "English (US)" },
+  { value: "zh-CN", label: "中文（简体）" },
+  { value: "ja-JP", label: "日本語" },
+  { value: "ko-KR", label: "한국어" },
+  { value: "fr-FR", label: "Français" },
+];
+
+const getProviderOption = (value: string) =>
+  SEARCH_MODEL_PROVIDERS.find((provider) => provider.value === value);
+
 const providerConfig = {
   openai: {
     name: "OpenAI",
@@ -139,6 +211,12 @@ export function ApiSettingsDialog() {
     isLoadingModels,
     modelErrors,
     fetchModels,
+    setTavilyApiKey,
+    getTavilyApiKey,
+    clearTavilyApiKey,
+    setSearchExtensionConfig,
+    getSearchExtensionConfig,
+    extensionSettings,
   } = useChatStore();
   const [selectedProvider, setSelectedProvider] =
     useState<ModelProvider>("openai");
@@ -151,9 +229,34 @@ export function ApiSettingsDialog() {
   const [apiKey, setApiKeyValue] = useState("");
   const [apiBaseUrl, setApiBaseUrlValue] = useState("");
   const [showKey, setShowKey] = useState(false);
+  const [tavilyKey, setTavilyKey] = useState("");
+  const [showTavilyKey, setShowTavilyKey] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSwitchingProvider, startProviderTransition] = useTransition();
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const initialSearchConfig = getSearchExtensionConfig();
+  const fallbackProvider =
+    getProviderOption(initialSearchConfig.queryModelProvider)?.value ??
+    (SEARCH_MODEL_PROVIDERS[0]?.value ?? "google");
+  const fallbackModel =
+    getProviderOption(fallbackProvider)?.models.find(
+      (model) => model.value === initialSearchConfig.queryModelId
+    )?.value ??
+    (getProviderOption(fallbackProvider)?.models[0]?.value ?? "");
+  const [activeExtensionTab, setActiveExtensionTab] =
+    useState<ExtensionTabId>("search");
+  const [searchModelProvider, setSearchModelProvider] =
+    useState<string>(fallbackProvider);
+  const [searchModelId, setSearchModelId] = useState<string>(fallbackModel);
+  const [searchLanguage, setSearchLanguage] = useState<string>(
+    initialSearchConfig.queryLanguage
+  );
+  const [searchExcludeSites, setSearchExcludeSites] = useState<string>(
+    initialSearchConfig.excludeWebsites ?? ""
+  );
+  const [searchMaxResultsInput, setSearchMaxResultsInput] = useState<string>(
+    String(initialSearchConfig.maxResults)
+  );
 
   const providers: ModelProvider[] = [
     "anthropic",
@@ -175,6 +278,33 @@ export function ApiSettingsDialog() {
     setApiBaseUrlValue(currentBaseUrl || "");
   }, [selectedProvider, currentKey, currentBaseUrl]);
 
+  useEffect(() => {
+    setTavilyKey(getTavilyApiKey() || "");
+  }, [getTavilyApiKey]);
+
+  useEffect(() => {
+    const config = getSearchExtensionConfig();
+    const providerOption =
+      getProviderOption(config.queryModelProvider) ??
+      getProviderOption(SEARCH_MODEL_PROVIDERS[0]?.value ?? "google");
+    const providerValue = providerOption?.value ?? fallbackProvider;
+    const modelOptions = providerOption?.models ?? [];
+    const modelValue =
+      modelOptions.find((model) => model.value === config.queryModelId)?.value ??
+      (modelOptions[0]?.value ?? fallbackModel);
+
+    setSearchModelProvider(providerValue);
+    setSearchModelId(modelValue);
+    setSearchLanguage(config.queryLanguage);
+    setSearchExcludeSites(config.excludeWebsites ?? "");
+    setSearchMaxResultsInput(String(config.maxResults));
+  }, [
+    extensionSettings.searchConfig,
+    fallbackModel,
+    fallbackProvider,
+    getSearchExtensionConfig,
+  ]);
+
   const handleApiKeyChange = (value: string) => {
     setApiKeyValue(value);
     setApiKey(selectedProvider, value);
@@ -195,6 +325,75 @@ export function ApiSettingsDialog() {
     setApiBaseUrlValue(value);
     setApiBaseUrl(selectedProvider, value);
   };
+
+  const handleTavilyKeyChange = (value: string) => {
+    setTavilyKey(value);
+    setTavilyApiKey(value);
+  };
+
+  const handleTavilyKeyClear = () => {
+    setTavilyKey("");
+    clearTavilyApiKey();
+  };
+
+  const handleSearchProviderChange = useCallback(
+    (value: string) => {
+      const providerOption =
+        getProviderOption(value) ??
+        getProviderOption(SEARCH_MODEL_PROVIDERS[0]?.value ?? "google");
+      const providerValue = providerOption?.value ?? value;
+      const modelOptions = providerOption?.models ?? [];
+      const preserved = modelOptions.find(
+        (model) => model.value === searchModelId
+      );
+      const fallback = preserved?.value ?? modelOptions[0]?.value ?? "";
+
+      setSearchModelProvider(providerValue);
+      setSearchModelId(fallback);
+
+      setSearchExtensionConfig({
+        queryModelProvider: providerValue,
+        queryModelId: fallback,
+      });
+    },
+    [searchModelId, setSearchExtensionConfig]
+  );
+
+  const handleSearchModelChange = useCallback(
+    (value: string) => {
+      setSearchModelId(value);
+      setSearchExtensionConfig({ queryModelId: value });
+    },
+    [setSearchExtensionConfig]
+  );
+
+  const handleSearchLanguageChange = useCallback(
+    (value: string) => {
+      setSearchLanguage(value);
+      setSearchExtensionConfig({ queryLanguage: value });
+    },
+    [setSearchExtensionConfig]
+  );
+
+  const handleSearchExcludeSitesChange = useCallback(
+    (value: string) => {
+      setSearchExcludeSites(value);
+      setSearchExtensionConfig({ excludeWebsites: value });
+    },
+    [setSearchExtensionConfig]
+  );
+
+  const commitSearchMaxResults = useCallback(
+    (raw: string) => {
+      const parsed = Number.parseInt(raw, 10);
+      const next = Number.isFinite(parsed)
+        ? Math.max(1, Math.min(50, parsed))
+        : getSearchExtensionConfig().maxResults;
+      setSearchMaxResultsInput(String(next));
+      setSearchExtensionConfig({ maxResults: next });
+    },
+    [getSearchExtensionConfig, setSearchExtensionConfig]
+  );
 
   // 手动刷新模型
   const handleRefreshModels = async () => {
@@ -444,6 +643,242 @@ export function ApiSettingsDialog() {
     );
   };
 
+  const renderSearchSettings = () => {
+    const hasSavedTavilyKey = Boolean(tavilyKey.trim());
+    const providerOption =
+      getProviderOption(searchModelProvider) ??
+      getProviderOption(SEARCH_MODEL_PROVIDERS[0]?.value ?? "google");
+    const providerModels = providerOption?.models ?? [];
+
+    const handleMaxResultsBlur = (event: FocusEvent<HTMLInputElement>) => {
+      commitSearchMaxResults(event.target.value);
+    };
+
+    const handleMaxResultsKeyDown = (
+      event: KeyboardEvent<HTMLInputElement>
+    ) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commitSearchMaxResults(event.currentTarget.value);
+      }
+    };
+
+    return (
+      <div className="max-w-3xl space-y-6">
+        <div>
+          <h3 className="text-base font-semibold">联网搜索</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            配置 Tavily API 及搜索策略，启用联网搜索时可生成可追溯的参考信息。
+          </p>
+        </div>
+
+        <div className="space-y-5 rounded-2xl border bg-muted/10 p-6 shadow-sm">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="tavily-key" className="text-sm font-medium">
+                Tavily API Key
+              </Label>
+            </div>
+            <div className="relative">
+              <Input
+                id="tavily-key"
+                type={showTavilyKey ? "text" : "password"}
+                value={tavilyKey}
+                onChange={(event) => handleTavilyKeyChange(event.target.value)}
+                placeholder="tavily_sk_..."
+                className="h-9 pr-40"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                {hasSavedTavilyKey && (
+                  <span className="text-xs font-semibold text-emerald-600">
+                    已保存
+                  </span>
+                )}
+                {tavilyKey && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTavilyKey(!showTavilyKey)}
+                    className="rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  >
+                    {showTavilyKey ? "隐藏" : "显示"}
+                  </button>
+                )}
+                {hasSavedTavilyKey && (
+                  <button
+                    type="button"
+                    onClick={handleTavilyKeyClear}
+                    className="rounded-md px-2 py-1 text-xs text-muted-foreground transition hover:bg-muted hover:text-destructive"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              密钥仅以加密形式保存在本地浏览器中，不会上传到服务器。
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                <span>Model for search query generation</span>
+                <HelpCircle
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  title="当聊天启用联网搜索时，先使用该模型将用户输入改写为搜索关键词"
+                />
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <select
+                  value={searchModelProvider}
+                  onChange={(event) =>
+                    handleSearchProviderChange(event.target.value)
+                  }
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/40 focus:border-primary sm:max-w-[180px]"
+                >
+                  {SEARCH_MODEL_PROVIDERS.map((provider) => (
+                    <option key={provider.value} value={provider.value}>
+                      {provider.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={searchModelId}
+                  onChange={(event) =>
+                    handleSearchModelChange(event.target.value)
+                  }
+                  className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                  disabled={providerModels.length === 0}
+                >
+                  {providerModels.length === 0 && (
+                    <option value="">暂无可用模型</option>
+                  )}
+                  {providerModels.map((modelOption) => (
+                    <option key={modelOption.value} value={modelOption.value}>
+                      {modelOption.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                <span>Search query language</span>
+                <HelpCircle
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  title="优先使用该语言编写搜索语句"
+                />
+              </div>
+              <select
+                value={searchLanguage}
+                onChange={(event) =>
+                  handleSearchLanguageChange(event.target.value)
+                }
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm focus:outline-hidden focus:ring-2 focus:ring-primary/40 focus:border-primary sm:max-w-[220px]"
+              >
+                {SEARCH_LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                <span>Exclude websites</span>
+                <HelpCircle
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  title="以逗号分隔的域名列表，在搜索时排除这些站点"
+                />
+              </div>
+              <Input
+                value={searchExcludeSites}
+                onChange={(event) =>
+                  handleSearchExcludeSitesChange(event.target.value)
+                }
+                placeholder="a.com,b.com"
+                className="h-9"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                <span>Max search results</span>
+                <HelpCircle
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  title="限制 Tavily 返回的结果条数（1-50）"
+                />
+              </div>
+              <Input
+                value={searchMaxResultsInput}
+                onChange={(event) => setSearchMaxResultsInput(event.target.value)}
+                onBlur={handleMaxResultsBlur}
+                onKeyDown={handleMaxResultsKeyDown}
+                inputMode="numeric"
+                className="h-9 sm:max-w-[140px]"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">使用建议</p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>控制查询长度（≤400 字符），避免无关信息。</li>
+            <li>根据问题复杂度调整最大搜索结果，平衡覆盖率和速度。</li>
+            <li>合理维护排除站点列表，减少重复或低质量来源。</li>
+            <li>回答前审阅来源内容，必要时提醒用户自行核实。</li>
+          </ul>
+          <a
+            href="https://docs.tavily.com/documentation/best-practices/best-practices-search"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center text-xs text-primary transition hover:underline"
+          >
+            查看 Tavily 搜索最佳实践
+          </a>
+        </div>
+      </div>
+    );
+  };
+
+  const renderExtensionsSection = () => {
+    return (
+      <div className="flex h-full min-h-0 bg-background">
+        <div className="w-52 border-r bg-muted/30 py-6">
+          <div className="px-3 pb-4 space-y-1">
+            {extensionTabs.map((tab) => {
+              const isSelected = tab.id === activeExtensionTab;
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveExtensionTab(tab.id)}
+                  className={cn(
+                    "flex w-full flex-col items-start gap-1 rounded-lg px-3 py-2 text-left text-sm transition-colors border border-transparent",
+                    isSelected
+                      ? "bg-primary/10 text-foreground border-primary/40"
+                      : "text-muted-foreground hover:bg-muted/40"
+                  )}
+                >
+                  <span className="font-medium">{tab.label}</span>
+                  <span className="text-xs text-muted-foreground/80">
+                    {tab.description}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-8 py-8">
+          {activeExtensionTab === "search" ? renderSearchSettings() : null}
+        </div>
+      </div>
+    );
+  };
+
   const renderPlaceholderSection = (message: string) => {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
@@ -472,9 +907,7 @@ export function ApiSettingsDialog() {
           "Connect MCP-compatible tools and data sources."
         );
       case "extensions":
-        return renderPlaceholderSection(
-          "Install extensions to unlock additional workflows."
-        );
+        return renderExtensionsSection();
       case "advanced":
         return renderPlaceholderSection(
           "Tweak experimental capabilities and developer options."
