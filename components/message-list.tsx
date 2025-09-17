@@ -1,6 +1,5 @@
 import { Message } from "@/components/message";
 import Spinner from "@/components/spinner";
-import { ChatMessage } from "@/lib/store";
 import { UIMessage } from "ai";
 
 export function MessageList({

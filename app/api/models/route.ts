@@ -2,6 +2,41 @@ import "@/lib/configure-proxy-fetch";
 import { NextRequest } from "next/server";
 import { Model, ModelProvider } from "@/lib/models";
 
+type ModelsRequestBody = {
+  apiKeys?: Record<string, string>;
+};
+
+interface OpenAIModelsResponse {
+  data: Array<{ id: string }>;
+}
+
+interface AnthropicModelsResponse {
+  data: Array<{ id: string; display_name?: string }>;
+}
+
+interface GoogleModelsResponse {
+  models?: Array<{
+    name: string;
+    supportedGenerationMethods?: string[];
+  }>;
+}
+
+interface OpenRouterModelsResponse {
+  data: Array<{ id: string; name?: string }>;
+}
+
+interface XaiModelsResponse {
+  data: Array<{ id: string }>;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  return Object.values(value).every((entry) => typeof entry === "string");
+}
+
 // Basic fetch timeout helper to avoid hanging on slow providers
 async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -24,11 +59,20 @@ async function fetchWithTimeout(
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({} as any));
-    const userKeys =
-      body && typeof body === "object" && typeof body.apiKeys === "object"
-        ? body.apiKeys
-        : {};
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      body = {};
+    }
+
+    let userKeys: Record<string, string> = {};
+    if (body && typeof body === "object" && "apiKeys" in body) {
+      const candidate = (body as ModelsRequestBody).apiKeys;
+      if (isStringRecord(candidate)) {
+        userKeys = candidate;
+      }
+    }
     const isProd = process.env.NODE_ENV === "production";
 
     // In development, allow falling back to server env variables for convenience
@@ -117,9 +161,9 @@ async function fetchOpenAIModels(apiKey: string): Promise<Model[]> {
     throw new Error(`OpenAI API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as OpenAIModelsResponse;
 
-  return data.data.map((model: any) => ({
+  return data.data.map((model) => ({
     id: model.id,
     name: model.id,
     provider: "openai" as ModelProvider,
@@ -141,9 +185,9 @@ async function fetchAnthropicModels(apiKey: string): Promise<Model[]> {
     throw new Error(`Anthropic API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as AnthropicModelsResponse;
 
-  return data.data.map((model: any) => ({
+  return data.data.map((model) => ({
     id: model.id,
     name: model.display_name || model.id,
     provider: "anthropic" as ModelProvider,
@@ -159,13 +203,14 @@ async function fetchGoogleModels(apiKey: string): Promise<Model[]> {
     throw new Error(`Google AI API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as GoogleModelsResponse;
+  const googleModels = data.models ?? [];
 
-  return data.models
-    .filter((model: any) =>
+  return googleModels
+    .filter((model) =>
       model.supportedGenerationMethods?.includes("generateContent")
     )
-    .map((model: any) => {
+    .map((model) => {
       // 从 "models/gemini-1.5-pro" 格式中提取模型名称
       const modelId = model.name.replace("models/", "");
       return {
@@ -192,9 +237,9 @@ async function fetchOpenRouterModels(apiKey: string): Promise<Model[]> {
     throw new Error(`OpenRouter API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as OpenRouterModelsResponse;
 
-  return data.data.map((model: any) => ({
+  return data.data.map((model) => ({
     id: model.id,
     name: model.name || model.id,
     provider: "openrouter" as ModelProvider,
@@ -212,9 +257,9 @@ async function fetchXAIModels(apiKey: string): Promise<Model[]> {
     throw new Error(`xAI API error: ${response.status}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as XaiModelsResponse;
 
-  return data.data.map((model: any) => ({
+  return data.data.map((model) => ({
     id: model.id,
     name: model.id,
     provider: "grok" as ModelProvider,

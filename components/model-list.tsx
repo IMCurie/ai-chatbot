@@ -3,18 +3,17 @@
 import { useState, useMemo } from "react";
 import { Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Model, ModelProvider } from "@/lib/models";
+import { Model } from "@/lib/models";
 import { useChatStore } from "@/lib/store";
 import { Input } from "@/components/ui/input";
 
 interface ModelListProps {
-  provider: ModelProvider;
   models: Model[];
   isLoading?: boolean;
   error?: string;
 }
 
-export function ModelList({ provider, models, isLoading, error }: ModelListProps) {
+export function ModelList({ models, isLoading, error }: ModelListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const { isModelEnabled, toggleModel } = useChatStore();
 

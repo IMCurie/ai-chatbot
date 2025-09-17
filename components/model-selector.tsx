@@ -26,13 +26,11 @@ export default function ModelSelector({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { 
-    availableModels, 
-    isLoadingModels, 
-    modelErrors, 
-    fetchModels, 
-    refreshModels,
-    getAvailableModels
+  const {
+    availableModels,
+    modelErrors,
+    fetchModels,
+    getAvailableModels,
   } = useChatStore();
 
   useEffect(() => {

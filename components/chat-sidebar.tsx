@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ApiSettingsDialog } from "@/components/api-settings-dialog";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "./ui/button";
 
 export default function ChatSidebar() {
   const { chats, deleteChat } = useChatStore();

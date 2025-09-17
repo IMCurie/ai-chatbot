@@ -101,7 +101,7 @@ const Code = memo(
                 await navigator.clipboard.writeText(code);
                 setCopied(true);
                 window.setTimeout(() => setCopied(false), 1500);
-              } catch (_) {
+              } catch {
                 // noop
               }
             }}

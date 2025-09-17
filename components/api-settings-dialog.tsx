@@ -32,12 +32,7 @@ import { ModelProvider, getModelsByProvider } from "@/lib/models";
 import { useChatStore } from "@/lib/store";
 import { ModelList } from "@/components/model-list";
 
-import {
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -430,7 +425,6 @@ export function ApiSettingsDialog() {
                 <Label className="text-sm font-medium">可用模型</Label>
                 <div className="rounded-lg border bg-background p-3">
                   <ModelList
-                    provider={selectedProvider}
                     models={currentProviderModels}
                     isLoading={showProviderLoading}
                     error={currentProviderError}

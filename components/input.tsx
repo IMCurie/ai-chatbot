@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { SendButton, StopButton } from "@/components/button";
 
 export default function Input({
@@ -17,12 +18,17 @@ export default function Input({
   disabled?: boolean;
   placeholder?: string;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const hasInput = inputValue.trim().length > 0;
 
   return (
     <div className="relative backdrop-blur-md bg-white/80 border border-neutral-200/50 shadow-lg rounded-3xl">
       <div className="flex items-end px-5 pt-2 pb-3 gap-3">
-        <form onSubmit={onSubmit} className="flex w-full items-end gap-3">
+        <form
+          ref={formRef}
+          onSubmit={onSubmit}
+          className="flex w-full items-end gap-3"
+        >
           <div className="flex-1">
             <textarea
               value={inputValue}
@@ -41,7 +47,7 @@ export default function Input({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey && hasInput && !disabled) {
                   e.preventDefault();
-                  onSubmit(e as any);
+                  formRef.current?.requestSubmit();
                 }
               }}
             />

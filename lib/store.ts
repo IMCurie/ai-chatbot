@@ -431,16 +431,26 @@ export const useChatStore = create<ChatStore>()(
       // 自定义反序列化逻辑，将数组转换回Set
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.log('An error happened during hydration', error);
-        } else if (state) {
-          // 将数组转换回Set
-          if (Array.isArray((state as any).enabledModelIds)) {
-            state.enabledModelIds = new Set((state as any).enabledModelIds);
-          }
-          // 重新计算可用模型列表
-          const enabledModels = state.allAvailableModels.filter(m => state.enabledModelIds.has(m.id));
-          state.availableModels = enabledModels;
+          console.log("An error happened during hydration", error);
+          return;
         }
+
+        if (!state) {
+          return;
+        }
+
+        const persistedIds = state.enabledModelIds as unknown;
+        if (Array.isArray(persistedIds)) {
+          const normalizedIds = persistedIds.filter(
+            (id): id is string => typeof id === "string"
+          );
+          state.enabledModelIds = new Set(normalizedIds);
+        }
+
+        const enabledModels = state.allAvailableModels.filter((model) =>
+          state.enabledModelIds.has(model.id)
+        );
+        state.availableModels = enabledModels;
       },
     }
   )
