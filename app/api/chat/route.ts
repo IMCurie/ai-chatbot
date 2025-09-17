@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import { streamText } from "ai";
+import { convertToModelMessages, streamText, type UIMessage } from "ai";
 import { Model } from "@/lib/models";
 import { ApiKeys, ApiBaseUrls } from "@/lib/store";
 
@@ -107,13 +107,16 @@ export async function POST(req: Request) {
   try {
     const provider = getProvider(model, apiKeys, baseUrls);
 
+    const uiMessages: UIMessage[] = Array.isArray(messages) ? messages : [];
+    const modelMessages = convertToModelMessages(uiMessages);
+
     const result = streamText({
       model: provider,
       system: "You are a helpful assistant.",
-      messages,
+      messages: modelMessages,
     });
 
-    return result.toDataStreamResponse();
+    return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error("Error in chat route:", error);
     

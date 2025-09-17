@@ -1,14 +1,25 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
-import { MessageList } from "@/components/message-list";
-import Input from "@/components/input";
-import { useChatStore } from "@/lib/store";
-import { Greeting } from "@/components/greeting";
-import ModelSelector from "@/components/model-selector";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { v4 as uuidv4 } from "uuid";
+
+import { Greeting } from "@/components/greeting";
+import Input from "@/components/input";
+import { MessageList } from "@/components/message-list";
+import ModelSelector from "@/components/model-selector";
 import { ModelProvider } from "@/lib/models";
+import { useChatStore } from "@/lib/store";
+import { getMessageText } from "@/lib/ui-message";
+
+const PROVIDERS: ModelProvider[] = [
+  "openai",
+  "anthropic",
+  "google",
+  "openrouter",
+  "grok",
+];
 
 export default function Chat({ id }: { id: string }) {
   const {
@@ -23,20 +34,23 @@ export default function Chat({ id }: { id: string }) {
   const [input, setInput] = useState("");
 
   const existingChat = chats.find((chat) => chat.id === id);
-  const initialChatMessages = useMemo(() => existingChat?.messages || [], [id]);
+  const initialMessages = useMemo<UIMessage[]>(() => {
+    if (!existingChat) {
+      return [];
+    }
+
+    return existingChat.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      parts: [{ type: "text" as const, text: message.content }],
+    }));
+  }, [existingChat]);
 
   // Get user API keys for the current model provider
-  const getUserApiKeys = () => {
+  const getUserApiKeys = useCallback(() => {
     const apiKeys: Record<string, string> = {};
-    const providers: ModelProvider[] = [
-      "openai",
-      "anthropic",
-      "google",
-      "openrouter",
-      "grok",
-    ];
 
-    providers.forEach((provider) => {
+    PROVIDERS.forEach((provider) => {
       const key = getApiKey(provider);
       if (key) {
         apiKeys[provider] = key;
@@ -44,20 +58,13 @@ export default function Chat({ id }: { id: string }) {
     });
 
     return apiKeys;
-  };
+  }, [getApiKey]);
 
   // Get user API base URLs for the current model provider
-  const getUserApiBaseUrls = () => {
+  const getUserApiBaseUrls = useCallback(() => {
     const baseUrls: Record<string, string> = {};
-    const providers: ModelProvider[] = [
-      "openai",
-      "anthropic",
-      "google",
-      "openrouter",
-      "grok",
-    ];
 
-    providers.forEach((provider) => {
+    PROVIDERS.forEach((provider) => {
       const baseUrl = getApiBaseUrl(provider);
       if (baseUrl) {
         baseUrls[provider] = baseUrl;
@@ -65,22 +72,36 @@ export default function Chat({ id }: { id: string }) {
     });
 
     return baseUrls;
-  };
+  }, [getApiBaseUrl]);
 
-  const { messages, status, stop, append } = useChat({
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        body: () => ({
+          model,
+          apiKeys: getUserApiKeys(),
+          baseUrls: getUserApiBaseUrls(),
+        }),
+      }),
+    [getUserApiBaseUrls, getUserApiKeys, model]
+  );
+
+  const { messages, status, stop, sendMessage } = useChat({
     id,
-    body: {
-      model: model,
-      apiKeys: getUserApiKeys(),
-      baseUrls: getUserApiBaseUrls(),
-    },
-    initialMessages: initialChatMessages,
-    onFinish: (message) => {
-      if (id) {
+    transport,
+    messages: initialMessages,
+    onFinish: ({ message, isAbort, isError }) => {
+      if (id && !isAbort && !isError) {
+        const content = getMessageText(message);
+
+        if (!content) {
+          return;
+        }
+
         addMessage(id, {
           id: uuidv4(),
           role: "assistant",
-          content: message.content,
+          content,
           createdAt: new Date(),
         });
       }
@@ -96,7 +117,7 @@ export default function Chat({ id }: { id: string }) {
       }
 
       window.history.replaceState({}, "", `/chat/${id}`);
-      append({ role: "user", content: input.trim() });
+      sendMessage({ text: input.trim() });
       addMessage(id, {
         id: uuidv4(),
         createdAt: new Date(),
