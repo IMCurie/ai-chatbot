@@ -24,19 +24,13 @@ export function SendButton({ disabled = false }: { disabled?: boolean }) {
       type="submit"
       disabled={disabled}
       className={cn(
-        "flex items-center justify-center",
-        "border-none rounded-full w-8 h-8",
-        "transition-colors duration-200 ease-in-out",
+        "flex items-center justify-center border-none rounded-full w-10 h-10 transition-colors duration-200 ease-in-out",
         disabled
-          ? "cursor-not-allowed bg-neutral-100"
-          : "cursor-pointer bg-neutral-800 hover:bg-neutral-700 shadow-sm hover:shadow-md"
+          ? "cursor-not-allowed bg-secondary text-primary shadow-none"
+          : "cursor-pointer bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
       )}
     >
-      <ArrowUp
-        className={cn(disabled ? "text-neutral-500" : "text-white")}
-        size={20}
-        strokeWidth={1.5}
-      />
+      <ArrowUp className="h-5 w-5" strokeWidth={1.5} />
     </button>
   );
 }
