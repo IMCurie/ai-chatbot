@@ -1,8 +1,12 @@
-import MemoizedMarkdown from "./enhance-markdown";
-import { cn } from "@/lib/utils";
 import { UIMessage } from "ai";
 
+import { getMessageText } from "@/lib/ui-message";
+import { cn } from "@/lib/utils";
+import MemoizedMarkdown from "./enhance-markdown";
+
 export function Message({ message }: { message: UIMessage }) {
+  const textContent = getMessageText(message);
+
   return (
     <div
       className={cn(
@@ -19,9 +23,9 @@ export function Message({ message }: { message: UIMessage }) {
         )}
       >
         {message.role === "assistant" ? (
-          <MemoizedMarkdown content={message.content} id={message.id} />
+          <MemoizedMarkdown content={textContent} id={message.id} />
         ) : (
-          <div className="text-foreground">{message.content}</div>
+          <div className="text-foreground">{textContent}</div>
         )}
       </div>
     </div>

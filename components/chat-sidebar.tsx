@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ApiSettingsDialog } from "@/components/api-settings-dialog";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "./ui/button";
 
 export default function ChatSidebar() {
   const { chats, deleteChat } = useChatStore();
@@ -111,7 +110,7 @@ export default function ChatSidebar() {
           <DialogTrigger asChild>
             <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground rounded-lg transition-colors text-sm">
               <Settings className="w-4 h-4" />
-              <span>API Settings</span>
+              <span>Settings</span>
             </button>
           </DialogTrigger>
           <ApiSettingsDialog />

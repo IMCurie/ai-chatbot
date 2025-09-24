@@ -37,6 +37,34 @@ export interface ApiBaseUrls {
   grok?: string;
 }
 
+export interface SearchExtensionConfig {
+  queryModelProvider: string;
+  queryModelId: string;
+  queryLanguage: string;
+  excludeWebsites: string;
+  maxResults: number;
+}
+
+export interface ExtensionSettings {
+  tavilyApiKey?: string;
+  searchConfig?: SearchExtensionConfig;
+}
+
+const DEFAULT_SEARCH_CONFIG: SearchExtensionConfig = {
+  queryModelProvider: "google",
+  queryModelId: "gemini-2.5-flash",
+  queryLanguage: "en-US",
+  excludeWebsites: "",
+  maxResults: 5,
+};
+
+const clampSearchResults = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_SEARCH_CONFIG.maxResults;
+  }
+  return Math.max(1, Math.min(50, Math.round(value)));
+};
+
 // Encryption key for API keys (in production, this should be more secure)
 const ENCRYPTION_KEY = "ai-chatbot-secret-key-2024";
 
@@ -55,6 +83,7 @@ interface ChatStore {
   model: Model | null;
   apiKeys: ApiKeys;
   apiBaseUrls: ApiBaseUrls;
+  extensionSettings: ExtensionSettings;
   allAvailableModels: Model[];  // 所有获取的模型
   availableModels: Model[];     // 仅启用的模型（计算属性）
   enabledModelIds: Set<string>; // 启用的模型ID集合
@@ -82,6 +111,15 @@ interface ChatStore {
   clearAllApiBaseUrls: () => void;
   hasApiBaseUrl: (provider: ModelProvider) => boolean;
 
+  // Extension management
+  setTavilyApiKey: (apiKey: string) => void;
+  getTavilyApiKey: () => string | undefined;
+  clearTavilyApiKey: () => void;
+
+  // Extension search settings
+  setSearchExtensionConfig: (config: Partial<SearchExtensionConfig>) => void;
+  getSearchExtensionConfig: () => SearchExtensionConfig;
+
   // Dynamic model management
   fetchModels: () => Promise<void>;
   refreshModels: () => Promise<void>;
@@ -101,6 +139,9 @@ export const useChatStore = create<ChatStore>()(
       model: null,
       apiKeys: {},
       apiBaseUrls: {},
+      extensionSettings: {
+        searchConfig: { ...DEFAULT_SEARCH_CONFIG },
+      },
       allAvailableModels: [],
       availableModels: [],
       enabledModelIds: new Set<string>(),
@@ -259,6 +300,78 @@ export const useChatStore = create<ChatStore>()(
       hasApiBaseUrl: (provider: ModelProvider) => {
         const state = get();
         return !!state.apiBaseUrls[provider];
+      },
+
+      // Extension management
+      setTavilyApiKey: (apiKey: string) => {
+        set((state) => {
+          const newSettings: ExtensionSettings = { ...state.extensionSettings };
+
+          if (!apiKey.trim()) {
+            delete newSettings.tavilyApiKey;
+          } else {
+            newSettings.tavilyApiKey = encryptApiKey(apiKey.trim());
+          }
+
+          return { extensionSettings: newSettings };
+        });
+      },
+
+      getTavilyApiKey: () => {
+        const encryptedKey = get().extensionSettings.tavilyApiKey;
+        if (!encryptedKey) return undefined;
+
+        try {
+          return decryptApiKey(encryptedKey);
+        } catch (error) {
+          console.error("Failed to decrypt Tavily API key:", error);
+          return undefined;
+        }
+      },
+
+      clearTavilyApiKey: () => {
+        set((state) => {
+          const newSettings: ExtensionSettings = { ...state.extensionSettings };
+          delete newSettings.tavilyApiKey;
+          return { extensionSettings: newSettings };
+        });
+      },
+
+      setSearchExtensionConfig: (config: Partial<SearchExtensionConfig>) => {
+        set((state) => {
+          const previous = state.extensionSettings.searchConfig ?? {
+            ...DEFAULT_SEARCH_CONFIG,
+          };
+          const next: SearchExtensionConfig = {
+            ...previous,
+            ...config,
+          };
+
+          if (config.maxResults !== undefined) {
+            next.maxResults = clampSearchResults(config.maxResults);
+          }
+
+          return {
+            extensionSettings: {
+              ...state.extensionSettings,
+              searchConfig: next,
+            },
+          };
+        });
+      },
+
+      getSearchExtensionConfig: () => {
+        const state = get();
+        const persisted = state.extensionSettings.searchConfig;
+        const merged = {
+          ...DEFAULT_SEARCH_CONFIG,
+          ...(persisted ?? {}),
+        };
+
+        return {
+          ...merged,
+          maxResults: clampSearchResults(merged.maxResults),
+        };
       },
 
       // Dynamic model management
@@ -424,6 +537,7 @@ export const useChatStore = create<ChatStore>()(
         model: state.model,
         apiKeys: state.apiKeys,
         apiBaseUrls: state.apiBaseUrls,
+        extensionSettings: state.extensionSettings,
         allAvailableModels: state.allAvailableModels,
         enabledModelIds: Array.from(state.enabledModelIds), // 序列化Set为数组
       }),
@@ -431,16 +545,38 @@ export const useChatStore = create<ChatStore>()(
       // 自定义反序列化逻辑，将数组转换回Set
       onRehydrateStorage: () => (state, error) => {
         if (error) {
-          console.log('An error happened during hydration', error);
-        } else if (state) {
-          // 将数组转换回Set
-          if (Array.isArray((state as any).enabledModelIds)) {
-            state.enabledModelIds = new Set((state as any).enabledModelIds);
-          }
-          // 重新计算可用模型列表
-          const enabledModels = state.allAvailableModels.filter(m => state.enabledModelIds.has(m.id));
-          state.availableModels = enabledModels;
+          console.log("An error happened during hydration", error);
+          return;
         }
+
+        if (!state) {
+          return;
+        }
+
+        if (!state.extensionSettings) {
+          state.extensionSettings = { searchConfig: { ...DEFAULT_SEARCH_CONFIG } };
+        } else {
+          state.extensionSettings.searchConfig = {
+            ...DEFAULT_SEARCH_CONFIG,
+            ...(state.extensionSettings.searchConfig ?? {}),
+          };
+          state.extensionSettings.searchConfig.maxResults = clampSearchResults(
+            state.extensionSettings.searchConfig.maxResults
+          );
+        }
+
+        const persistedIds = state.enabledModelIds as unknown;
+        if (Array.isArray(persistedIds)) {
+          const normalizedIds = persistedIds.filter(
+            (id): id is string => typeof id === "string"
+          );
+          state.enabledModelIds = new Set(normalizedIds);
+        }
+
+        const enabledModels = state.allAvailableModels.filter((model) =>
+          state.enabledModelIds.has(model.id)
+        );
+        state.availableModels = enabledModels;
       },
     }
   )

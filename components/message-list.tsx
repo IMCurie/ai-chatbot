@@ -1,22 +1,43 @@
+import React from "react";
 import { Message } from "@/components/message";
 import Spinner from "@/components/spinner";
-import { ChatMessage } from "@/lib/store";
 import { UIMessage } from "ai";
+
+import type { SearchSession } from "@/components/search-flow-card";
+
+interface MessageListProps {
+  messages: UIMessage[];
+  status: "ready" | "submitted" | "streaming" | "error";
+  searchSessions?: SearchSession[];
+  renderSearchCard?: (session: SearchSession) => React.ReactNode;
+}
 
 export function MessageList({
   messages,
   status,
-}: {
-  messages: UIMessage[];
-  status: "ready" | "submitted" | "streaming" | "error";
-}) {
+  searchSessions = [],
+  renderSearchCard,
+}: MessageListProps) {
+  const searchSessionMap = React.useMemo(() => {
+    return new Map(
+      searchSessions.map((session) => [session.messageId, session])
+    );
+  }, [searchSessions]);
+
   return (
     <ul className="space-y-12">
       {messages.map((message) => {
+        const session = searchSessionMap.get(message.id);
+
         return (
-          <li key={message.id}>
-            <Message message={message} />
-          </li>
+          <React.Fragment key={message.id}>
+            <li>
+              <Message message={message} />
+            </li>
+            {session && message.role === "user" && renderSearchCard && (
+              <li className="mt-6">{renderSearchCard(session)}</li>
+            )}
+          </React.Fragment>
         );
       })}
       {status === "submitted" && (

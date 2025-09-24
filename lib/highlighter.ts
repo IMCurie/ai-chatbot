@@ -1,7 +1,8 @@
+import type { HighlighterCore } from "@shikijs/core";
 import { createHighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
-let highlighterInstance: any = null;
+let highlighterInstance: HighlighterCore | null = null;
 let isInitializing = false;
 
 const highlighterPromise = createHighlighterCore({

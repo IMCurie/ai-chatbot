@@ -7,6 +7,7 @@ import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Code from "./code";
 import React from "react";
+import Image from "next/image";
 
 const MarkdownComponents: Components = {
   h1: ({ children }) => (
@@ -138,29 +139,47 @@ const MarkdownComponents: Components = {
   pre: ({ children }) => {
     const child = Array.isArray(children) ? children[0] : children;
     if (React.isValidElement(child)) {
-      const el = child as React.ReactElement<any>;
-      const props = (el.props || {}) as { className?: string; children?: React.ReactNode };
-      const childClass = props.className || "language-text";
-      const raw = props.children as unknown;
-      const childContent = Array.isArray(raw) ? raw.join("") : (raw as string | undefined);
-      return <Code className={childClass}>{(childContent ?? "") as string}</Code>;
+      const el = child as React.ReactElement<{
+        className?: string;
+        children?: React.ReactNode;
+      }>;
+      const childClass = el.props?.className ?? "language-text";
+      const rawChildren = el.props?.children;
+
+      let childContent = "";
+      if (typeof rawChildren === "string") {
+        childContent = rawChildren;
+      } else if (Array.isArray(rawChildren)) {
+        childContent = rawChildren
+          .map((segment) => (typeof segment === "string" ? segment : ""))
+          .join("");
+      }
+
+      return <Code className={childClass}>{childContent}</Code>;
     }
     return <pre>{children}</pre>;
   },
   
   // Images: responsive, rounded, lazy-loaded
-  img: (props: any) => {
-    const src = typeof props.src === "string" ? props.src : "";
-    const alt = typeof props.alt === "string" ? props.alt : "";
-    // eslint-disable-next-line @next/next/no-img-element
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    if (typeof src !== "string" || src.length === 0) {
+      return null;
+    }
+
+    const altText = typeof alt === "string" ? alt : "";
+
     return (
-      <img
-        src={src}
-        alt={alt}
-        className="max-w-full h-auto rounded my-3"
-        loading="lazy"
-        referrerPolicy="no-referrer"
-      />
+      <span className="relative block my-3">
+        <Image
+          src={src}
+          alt={altText}
+          width={800}
+          height={450}
+          className="h-auto w-full rounded"
+          sizes="(max-width: 768px) 100vw, 768px"
+          unoptimized
+        />
+      </span>
     );
   },
 };
