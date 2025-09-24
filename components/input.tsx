@@ -79,8 +79,8 @@ export default function Input({
                   className={cn(
                     "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
                     networkSearchEnabled
-                      ? "border-blue-500 bg-blue-50 text-blue-600 shadow-sm"
-                      : "border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-100",
+                      ? "border-primary/60 bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-sidebar text-muted-foreground hover:bg-muted",
                     !networkSearchAvailable && "cursor-not-allowed opacity-40"
                   )}
                   aria-pressed={networkSearchEnabled}

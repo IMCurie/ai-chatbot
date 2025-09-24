@@ -19,7 +19,9 @@ export function MessageList({
   renderSearchCard,
 }: MessageListProps) {
   const searchSessionMap = React.useMemo(() => {
-    return new Map(searchSessions.map((session) => [session.messageId, session]));
+    return new Map(
+      searchSessions.map((session) => [session.messageId, session])
+    );
   }, [searchSessions]);
 
   return (
@@ -33,7 +35,7 @@ export function MessageList({
               <Message message={message} />
             </li>
             {session && message.role === "user" && renderSearchCard && (
-              <li>{renderSearchCard(session)}</li>
+              <li className="mt-6">{renderSearchCard(session)}</li>
             )}
           </React.Fragment>
         );

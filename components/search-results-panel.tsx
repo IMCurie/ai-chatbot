@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import Image from "next/image";
+import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { SearchResultItem } from "@/lib/search";
@@ -27,79 +28,88 @@ export function SearchResultsPanel({
   }
 
   return (
-    <section className="mb-6 rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm transition">
+    <section
+      aria-label={`基于查询 ${query} 的搜索结果`}
+      className="rounded-3xl border border-primary/20 bg-secondary/80"
+    >
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center justify-between gap-3 text-left"
+        className="flex w-full items-center gap-3 rounded-2xl border border-primary/15 bg-secondary/60 px-4 py-3 text-left"
         aria-expanded={isExpanded}
       >
-        <div>
-          <p className="text-sm font-semibold text-primary">
-            {providerLabel}：找到 {results.length} 条相关资源
-          </p>
-          <p className="text-xs text-muted-foreground">
-            基于查询 “{query}” {isStreaming ? "（生成回答中…）" : ""}
-          </p>
-        </div>
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 text-primary transition-transform",
-            isExpanded ? "rotate-180" : "rotate-0"
-          )}
-        />
+        <span className="text-sm font-semibold text-foreground">{providerLabel}</span>
+        <span className="text-xs text-muted-foreground">
+          {results.length} 条结果{isStreaming ? " · 生成中" : ""}
+        </span>
+        <span className="ml-auto flex items-center text-muted-foreground">
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 transition-transform",
+              isExpanded ? "rotate-180" : "rotate-0"
+            )}
+          />
+        </span>
       </button>
 
       {isExpanded && (
-        <ul className="mt-4 space-y-3">
-          {results.map((result) => {
-            const scoreLabel =
-              typeof result.score === "number" && !Number.isNaN(result.score)
-                ? `相关度 ${result.score.toFixed(2)}`
-                : undefined;
-
-            return (
-              <li
-                key={result.id}
-                className="rounded-lg border border-primary/10 bg-background px-4 py-3 text-sm shadow-sm"
+        <ol className="border-t border-primary/15 px-1 pb-1">
+          {results.map((result) => (
+            <li key={result.id}>
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 rounded-2xl border border-transparent bg-background/90 px-3 py-2 text-sm transition hover:border-primary/30 hover:bg-background"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="font-semibold text-primary">[{result.index}]</span>
-                      {scoreLabel && <span>{scoreLabel}</span>}
-                    </div>
-                    <a
-                      href={result.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block text-sm font-medium text-foreground hover:text-primary"
-                    >
-                      {result.title}
-                    </a>
-                    {result.snippet && (
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {result.snippet}
-                      </p>
-                    )}
-                  </div>
-                  <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-primary transition hover:border-primary/40 hover:bg-primary/10"
-                  >
-                    打开
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                <span className="text-xs font-semibold text-primary">
+                  {result.index}
+                </span>
+                <ResultIcon result={result} />
+                <span className="line-clamp-1 flex-1 text-foreground transition group-hover:text-primary">
+                  {result.title}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ol>
       )}
     </section>
   );
+}
+
+function ResultIcon({ result }: { result: SearchResultItem }) {
+  const hostname = safeHostname(result.url);
+  const label = hostname ? hostname[0]?.toUpperCase() : "•";
+
+  const iconUrl = hostname
+    ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`
+    : "";
+
+  return iconUrl ? (
+    <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-primary/10">
+      <Image
+        src={iconUrl}
+        alt={hostname || "站点图标"}
+        width={20}
+        height={20}
+        className="h-5 w-5"
+        unoptimized
+      />
+    </span>
+  ) : (
+    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+      {label}
+    </span>
+  );
+}
+
+function safeHostname(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 export default SearchResultsPanel;
