@@ -55,22 +55,17 @@ function getProvider(
   userApiKeys?: ApiKeys,
   userBaseUrls?: ApiBaseUrls
 ): ProviderModelInstance {
-  // Helper function to get API key with fallback to environment variable
-  const getApiKey = (provider: string, envKey: string) => {
-    const userKey = userApiKeys?.[provider as keyof ApiKeys];
-    const envValue = process.env[envKey];
-    const isProd = process.env.NODE_ENV === "production";
-    
+  // Helper function to get API key supplied by the user
+  const getApiKey = (provider: Model["provider"]) => {
+    const userKey = userApiKeys?.[provider];
+
     if (userKey && userKey.trim()) {
       return userKey.trim();
     }
-    
-    // In development, allow falling back to server env vars for convenience
-    if (!isProd && envValue && envValue.trim()) {
-      return envValue.trim();
-    }
-    
-    throw new Error(`No API key found for ${provider}. Please set your API key in settings or environment variables.`);
+
+    throw new Error(
+      `No API key found for ${provider}. Please set your API key in settings.`
+    );
   };
 
   // Helper function to get custom base URL (only return if user has set a custom one)
@@ -82,7 +77,7 @@ function getProvider(
   switch (model.provider) {
     case "openai":
       const openaiConfig: OpenAIProviderSettings = {
-        apiKey: getApiKey("openai", "OPENAI_API_KEY"),
+        apiKey: getApiKey("openai"),
       };
       const openaiBaseUrl = getBaseUrl("openai");
       if (openaiBaseUrl) {
@@ -93,7 +88,7 @@ function getProvider(
 
     case "anthropic":
       const anthropicConfig: AnthropicProviderSettings = {
-        apiKey: getApiKey("anthropic", "ANTHROPIC_API_KEY"),
+        apiKey: getApiKey("anthropic"),
       };
       const anthropicBaseUrl = getBaseUrl("anthropic");
       if (anthropicBaseUrl) {
@@ -104,7 +99,7 @@ function getProvider(
 
     case "google":
       const googleConfig: GoogleGenerativeAIProviderSettings = {
-        apiKey: getApiKey("google", "GOOGLE_API_KEY"),
+        apiKey: getApiKey("google"),
       };
       const googleBaseUrl = getBaseUrl("google");
       if (googleBaseUrl) {
@@ -115,7 +110,7 @@ function getProvider(
 
     case "openrouter":
       const openrouterConfig: OpenRouterProviderSettings = {
-        apiKey: getApiKey("openrouter", "OPENROUTER_API_KEY"),
+        apiKey: getApiKey("openrouter"),
       };
       const openrouterBaseUrl = getBaseUrl("openrouter");
       if (openrouterBaseUrl) {
@@ -126,7 +121,7 @@ function getProvider(
 
     case "grok":
       const xaiConfig: XaiProviderSettings = {
-        apiKey: getApiKey("grok", "XAI_API_KEY"),
+        apiKey: getApiKey("grok"),
       };
       const grokBaseUrl = getBaseUrl("grok");
       if (grokBaseUrl) {

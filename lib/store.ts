@@ -394,11 +394,10 @@ export const useChatStore = create<ChatStore>()(
           }
         });
 
-        // 在生产环境：没有任何用户密钥则不请求，清空模型列表
-        // 在开发环境：即使没有用户密钥也继续请求，由服务端在开发环境回退到 env 变量
-        const isProd = process.env.NODE_ENV === "production";
-        if (Object.keys(apiKeys).length === 0 && isProd) {
+        // 如果没有任何用户配置的 API 密钥，则不请求模型列表
+        if (Object.keys(apiKeys).length === 0) {
           set({
+            allAvailableModels: [],
             availableModels: [],
             model: null,
             isLoadingModels: false,

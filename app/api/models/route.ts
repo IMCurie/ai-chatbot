@@ -73,25 +73,7 @@ export async function POST(req: NextRequest) {
         userKeys = candidate;
       }
     }
-    const isProd = process.env.NODE_ENV === "production";
-
-    // In development, allow falling back to server env variables for convenience
     const effectiveKeys: Record<string, string> = { ...(userKeys || {}) };
-    if (!isProd) {
-      const envKeyMap: Record<string, string | undefined> = {
-        openai: process.env.OPENAI_API_KEY,
-        anthropic: process.env.ANTHROPIC_API_KEY,
-        google: process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI,
-        openrouter: process.env.OPENROUTER_API_KEY,
-        grok: process.env.XAI_API_KEY,
-      };
-
-      for (const [provider, value] of Object.entries(envKeyMap)) {
-        if (!effectiveKeys[provider] && value && value.trim()) {
-          effectiveKeys[provider] = value.trim();
-        }
-      }
-    }
 
     if (!effectiveKeys || Object.keys(effectiveKeys).length === 0) {
       return Response.json({ error: "API keys are required" }, { status: 400 });
