@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect } from "react";
+import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { v4 as uuidv4 } from "uuid";
@@ -14,7 +14,7 @@ import {
   type SearchSession,
   type SearchSessionMeta,
 } from "@/components/search-flow-card";
-import { ModelProvider } from "@/lib/models";
+import { ModelProvider, type Model } from "@/lib/models";
 import { useChatStore } from "@/lib/store";
 import { getMessageText } from "@/lib/ui-message";
 import type { SearchResultItem } from "@/lib/search";
@@ -67,6 +67,9 @@ export default function Chat({ id }: { id: string }) {
   }, []);
 
   const existingChat = chats.find((chat) => chat.id === id);
+  // Keep transport payload in sync with the latest selected model across hydration.
+  const modelRef = useRef<Model | null>(model);
+  modelRef.current = model;
   const initialMessages = useMemo<UIMessage[]>(() => {
     if (!existingChat) {
       return [];
@@ -110,13 +113,16 @@ export default function Chat({ id }: { id: string }) {
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        body: () => ({
-          model,
-          apiKeys: getUserApiKeys(),
-          baseUrls: getUserApiBaseUrls(),
-        }),
+        body: () => {
+          const currentModel = modelRef.current;
+          return {
+            ...(currentModel ? { model: currentModel } : {}),
+            apiKeys: getUserApiKeys(),
+            baseUrls: getUserApiBaseUrls(),
+          };
+        },
       }),
-    [getUserApiBaseUrls, getUserApiKeys, model]
+    [getUserApiBaseUrls, getUserApiKeys]
   );
 
   const { messages, status, stop, sendMessage, setMessages } = useChat({
