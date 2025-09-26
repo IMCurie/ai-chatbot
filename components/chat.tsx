@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { v4 as uuidv4 } from "uuid";
@@ -55,6 +61,7 @@ export default function Chat({ id }: { id: string }) {
   const [isNetworkSearchEnabled, setIsNetworkSearchEnabled] = useState(false);
   const [searchSessions, setSearchSessions] = useState<SearchSession[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
+  
 
   useEffect(() => {
     if (!hasTavilyKey) {
@@ -65,6 +72,8 @@ export default function Chat({ id }: { id: string }) {
   useEffect(() => {
     setIsHydrated(true);
   }, []);
+
+  // no-op
 
   const existingChat = chats.find((chat) => chat.id === id);
   // Keep transport payload in sync with the latest selected model across hydration.
@@ -147,6 +156,7 @@ export default function Chat({ id }: { id: string }) {
     },
   });
 
+
   interface TavilySearchResponse {
     query: string;
     searchDepth?: string;
@@ -180,12 +190,7 @@ export default function Chat({ id }: { id: string }) {
         results: Array.isArray(data.results) ? data.results : [],
       };
     },
-    [
-      tavilyApiKey,
-      searchExcludeWebsites,
-      searchLanguage,
-      searchMaxResults,
-    ]
+    [tavilyApiKey, searchExcludeWebsites, searchLanguage, searchMaxResults]
   );
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -280,9 +285,7 @@ export default function Chat({ id }: { id: string }) {
         };
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "联网搜索失败，请稍后重试";
+          error instanceof Error ? error.message : "联网搜索失败，请稍后重试";
 
         console.error("Tavily search error", error);
         setSearchSessions((prev) =>
@@ -368,9 +371,7 @@ export default function Chat({ id }: { id: string }) {
         );
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "联网搜索失败，请稍后重试";
+          error instanceof Error ? error.message : "联网搜索失败，请稍后重试";
 
         setSearchSessions((prev) =>
           prev.map((session) =>
@@ -385,50 +386,69 @@ export default function Chat({ id }: { id: string }) {
   );
 
   return (
-    <div className="flex flex-col h-screen font-sans overflow-y-auto scrollbar-gutter-stable">
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur px-4 pt-4 pb-2 border-b">
-        <ModelSelector selectedModel={model} onModelChange={setModel} />
-      </div>
-      <div className="flex-1">
-        <div className="max-w-3xl mx-auto">
-          <div className="py-10 pb-32">
-            {messages.length === 0 ? (
-              <Greeting />
-            ) : (
-              <MessageList
-                messages={messages}
-                status={status}
-                searchSessions={searchSessions}
-                renderSearchCard={(session) => (
-                  <SearchFlowCard
-                    session={session}
-                    onToggleExpanded={handleToggleSearchSession}
-                    onRetry={handleRetrySearchSession}
-                  />
-                )}
-              />
-            )}
+    // 三段式布局：顶部模型/标题 + 中部滚动会话 + 底部输入框
+    <div className="flex h-full min-h-0 flex-col font-sans">
+      {/* Header */}
+      <div className="shrink-0 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="grid h-14 w-full grid-cols-3 items-center px-4">
+          <div className="justify-self-start">
+            <ModelSelector selectedModel={model} onModelChange={setModel} />
           </div>
+          <div />
+          <div />
         </div>
       </div>
 
-      <div className="sticky bottom-0 w-full max-w-3xl mx-auto pb-4">
-        <Input
-          inputValue={input}
-          onInputChange={(e) => setInput(e.target.value)}
-          onSubmit={handleFormSubmit}
-          status={status}
-          stop={stop}
-          disabled={!model}
-          placeholder={!model ? "请先在设置中配置API密钥并选择模型" : undefined}
-          networkSearchEnabled={isNetworkSearchEnabled}
-          onToggleNetworkSearch={handleNetworkSearchToggle}
-          networkSearchAvailable={hasTavilyKey}
-          networkSearchLoading={searchSessions.some(
-            (session) => session.status === "processing"
-          )}
-          showNetworkSearchToggle={isHydrated}
-        />
+      {/* Conversation (scrollable) */}
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable">
+        <div className="mx-auto max-w-3xl px-4">
+          <div className="min-h-full flex flex-col">
+            <div className="pt-3">
+              {messages.length === 0 ? (
+                <Greeting />
+              ) : (
+                <MessageList
+                  messages={messages}
+                  status={status}
+                  searchSessions={searchSessions}
+                  renderSearchCard={(session) => (
+                    <SearchFlowCard
+                      session={session}
+                      onToggleExpanded={handleToggleSearchSession}
+                      onRetry={handleRetrySearchSession}
+                    />
+                  )}
+                />
+              )}
+            </div>
+
+            {/* Sticky input inside scroll area with background fade to prevent text peeking around rounded corners */}
+            <div className="sticky bottom-0 z-10 mt-auto">
+              <div className="pointer-events-none bg-gradient-to-t from-background via-background/95 to-background/0 pt-3 pb-3">
+                <div className="pointer-events-auto">
+                  <Input
+                    inputValue={input}
+                    onInputChange={(e) => setInput(e.target.value)}
+                    onSubmit={handleFormSubmit}
+                    status={status}
+                    stop={stop}
+                    disabled={!model}
+                    placeholder={
+                      !model ? "请先在设置中配置API密钥并选择模型" : undefined
+                    }
+                    networkSearchEnabled={isNetworkSearchEnabled}
+                    onToggleNetworkSearch={handleNetworkSearchToggle}
+                    networkSearchAvailable={hasTavilyKey}
+                    networkSearchLoading={searchSessions.some(
+                      (session) => session.status === "processing"
+                    )}
+                    showNetworkSearchToggle={isHydrated}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

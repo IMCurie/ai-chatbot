@@ -25,7 +25,7 @@ export function MessageList({
   }, [searchSessions]);
 
   return (
-    <ul className="space-y-12">
+    <ul className="space-y-12 last:mb-32">
       {messages.map((message) => {
         const session = searchSessionMap.get(message.id);
 

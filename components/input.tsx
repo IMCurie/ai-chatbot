@@ -39,24 +39,24 @@ export default function Input({
   const networkToggleLabel = networkSearchEnabled ? "关闭联网搜索" : "开启联网搜索";
 
   return (
-    <div className="relative rounded-3xl border border-neutral-200/50 bg-white/80 shadow-lg backdrop-blur-md">
+    <div className="relative rounded-3xl border border-neutral-200 bg-white shadow-sm">
       <form ref={formRef} onSubmit={onSubmit} className="flex w-full flex-col">
-        <div className="px-5 pt-4">
+        <div className="px-4 pt-2">
           <textarea
             value={inputValue}
             onChange={onInputChange}
             placeholder={placeholder}
             disabled={disabled}
             className={cn(
-              "w-full resize-none bg-transparent py-2 text-base leading-6 text-neutral-900 placeholder-neutral-500 outline-none",
-              "min-h-[64px] max-h-32",
+              "w-full resize-none bg-transparent py-1.5 text-base leading-6 text-neutral-900 placeholder-neutral-500 outline-none",
+              "min-h-[44px] max-h-40",
               disabled && "cursor-not-allowed opacity-50"
             )}
-            rows={3}
+            rows={1}
             onInput={(event) => {
               const target = event.target as HTMLTextAreaElement;
               target.style.height = "auto";
-              target.style.height = `${Math.max(target.scrollHeight, 64)}px`;
+              target.style.height = `${Math.max(target.scrollHeight, 44)}px`;
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey && hasInput && !disabled) {
@@ -67,7 +67,7 @@ export default function Input({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-5 pb-4 pt-3">
+        <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-2">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {showNetworkSearchControls && (
               <>
@@ -77,7 +77,7 @@ export default function Input({
                     networkSearchAvailable && onToggleNetworkSearch?.(!networkSearchEnabled)
                   }
                   className={cn(
-                    "relative inline-flex h-9 w-9 items-center justify-center rounded-full border transition",
+                    "relative inline-flex h-8 w-8 items-center justify-center rounded-full border transition",
                     networkSearchEnabled
                       ? "border-primary/60 bg-primary/10 text-primary shadow-sm"
                       : "border-border bg-sidebar text-muted-foreground hover:bg-muted",

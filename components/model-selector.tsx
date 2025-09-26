@@ -14,7 +14,7 @@ interface ModelSelectorProps {
 const providerNames: Record<ModelProvider, string> = {
   openai: "OpenAI",
   anthropic: "Anthropic",
-  google: "Google",
+  google: "Google AI",
   openrouter: "OpenRouter",
   grok: "Grok",
 };
@@ -73,23 +73,32 @@ export default function ModelSelector({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 px-3 py-1.5 rounded-lg",
+          "group flex items-start gap-3 px-2 py-1.5 rounded-md text-left",
           "bg-transparent hover:bg-neutral-100",
-          "transition-colors",
-          "text-sm font-medium text-neutral-900",
-          "cursor-pointer select-none"
+          "transition-colors cursor-pointer select-none"
         )}
+        aria-expanded={isOpen}
+        aria-label="Select model"
       >
-        {selectedModel ? (
-          <span>{selectedModel.name}</span>
-        ) : (
-          <span className="text-neutral-500">
-            {availableModels.length === 0 ? "请配置API密钥" : "请启用模型"}
-          </span>
-        )}
+        <div className="flex-1 min-w-0 flex flex-col items-stretch">
+          {selectedModel ? (
+            <>
+              <div className="w-full truncate text-base font-medium text-neutral-900 leading-tight text-left">
+                {selectedModel.name}
+              </div>
+              <div className="w-full truncate text-xs text-neutral-500 leading-tight text-left">
+                {providerNames[selectedModel.provider]}
+              </div>
+            </>
+          ) : (
+            <div className="w-full truncate text-sm text-neutral-500 leading-tight text-left">
+              {availableModels.length === 0 ? "请配置 API Key" : "未启用模型"}
+            </div>
+          )}
+        </div>
         <ChevronDown
           className={cn(
-            "w-4 h-4 text-neutral-500 transition-transform",
+            "h-4 w-4 shrink-0 self-start mt-0.5 text-neutral-600 group-hover:text-neutral-800 transition-transform",
             isOpen && "rotate-180"
           )}
         />
