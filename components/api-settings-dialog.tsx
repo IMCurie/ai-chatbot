@@ -24,11 +24,14 @@ import {
   Loader2,
   Router,
   Server,
-  Workflow,
+  Hammer,
   Ellipsis,
   type LucideIcon,
   Sparkle,
   Bot,
+  Plus,
+  Trash2,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelProvider, getModelsByProvider } from "@/lib/models";
@@ -40,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -95,7 +99,7 @@ const settingsSections: SettingsSection[] = [
     id: "mcp",
     label: "MCP",
     description: "Connect Model Context Protocol tools and services",
-    icon: Workflow,
+    icon: Hammer,
   },
   {
     id: "extensions",
@@ -222,6 +226,16 @@ export function ApiSettingsDialog() {
     setSearchExtensionConfig,
     getSearchExtensionConfig,
     extensionSettings,
+    mcpSettings,
+    setMcpEnabled,
+    addMcpServer,
+    removeMcpServer,
+    updateMcpServerMetadata,
+    setMcpServerHeaders,
+    setMcpServerTools,
+    toggleMcpTool,
+    getMcpRuntimeConfig,
+    getMcpRuntimeServer,
   } = useChatStore();
   const [selectedProvider, setSelectedProvider] =
     useState<ModelProvider>("openai");
@@ -264,6 +278,30 @@ export function ApiSettingsDialog() {
   const [searchMaxResultsInput, setSearchMaxResultsInput] = useState<string>(
     String(initialSearchConfig.maxResults)
   );
+  type ServerSyncState = {
+    state: "idle" | "loading" | "success" | "error";
+    message?: string;
+  };
+  const [syncStatus, setSyncStatus] = useState<Record<string, ServerSyncState>>(
+    {}
+  );
+
+  const runtimeMcpConfig = getMcpRuntimeConfig();
+  const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
+  const toggleServerExpanded = useCallback((id: string) => {
+    setExpandedServers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!mcpSettings.enabled) {
+      setSyncStatus({});
+    }
+  }, [mcpSettings.enabled]);
 
   const providers: ModelProvider[] = [
     "anthropic",
@@ -398,6 +436,212 @@ export function ApiSettingsDialog() {
     },
     [getSearchExtensionConfig, setSearchExtensionConfig]
   );
+
+  const handleToggleMcpEnabled = useCallback(() => {
+    setMcpEnabled(!mcpSettings.enabled);
+  }, [mcpSettings.enabled, setMcpEnabled]);
+
+  const updateHeaders = useCallback(
+    (
+      serverId: string,
+      updater: (
+        headers: Array<{ id: string; key: string; value: string }>
+      ) => Array<{ id?: string; key: string; value: string }>
+    ) => {
+      const runtime = getMcpRuntimeConfig();
+      const target = runtime.servers.find((server) => server.id === serverId);
+      const currentHeaders = target?.headers ?? [];
+      const nextHeaders = updater(currentHeaders);
+      setMcpServerHeaders(serverId, nextHeaders);
+    },
+    [getMcpRuntimeConfig, setMcpServerHeaders]
+  );
+
+  const handleHeaderKeyChange = useCallback(
+    (serverId: string, headerId: string, value: string) => {
+      updateHeaders(serverId, (headers) =>
+        headers.map((header) =>
+          header.id === headerId ? { ...header, key: value } : header
+        )
+      );
+    },
+    [updateHeaders]
+  );
+
+  const handleHeaderValueChange = useCallback(
+    (serverId: string, headerId: string, value: string) => {
+      updateHeaders(serverId, (headers) =>
+        headers.map((header) =>
+          header.id === headerId ? { ...header, value } : header
+        )
+      );
+    },
+    [updateHeaders]
+  );
+
+  const handleAddHeader = useCallback(
+    (serverId: string) => {
+      updateHeaders(serverId, (headers) => [
+        ...headers,
+        { id: undefined, key: "", value: "" },
+      ]);
+    },
+    [updateHeaders]
+  );
+
+  const handleRemoveHeader = useCallback(
+    (serverId: string, headerId: string) => {
+      updateHeaders(serverId, (headers) =>
+        headers.filter((header) => header.id !== headerId)
+      );
+    },
+    [updateHeaders]
+  );
+
+  const handleAddServer = useCallback(() => {
+    const index = mcpSettings.servers.length + 1;
+    addMcpServer({
+      name: `Server ${index}`,
+      url: "",
+    });
+  }, [addMcpServer, mcpSettings.servers.length]);
+
+  const handleRemoveServer = useCallback(
+    (serverId: string) => {
+      removeMcpServer(serverId);
+      setSyncStatus((prev) => {
+        const next = { ...prev };
+        delete next[serverId];
+        return next;
+      });
+    },
+    [removeMcpServer]
+  );
+
+  const handleSyncTools = useCallback(
+    async (serverId: string) => {
+      const target = getMcpRuntimeServer(serverId);
+
+      if (!target) {
+        setSyncStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            state: "error",
+            message: "无法读取该服务的配置，请刷新后重试。",
+          },
+        }));
+        return;
+      }
+
+      const endpoint = target.url.trim();
+      if (!endpoint) {
+        setSyncStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            state: "error",
+            message: "请先填写 MCP 服务地址",
+          },
+        }));
+        return;
+      }
+
+      setSyncStatus((prev) => ({
+        ...prev,
+        [serverId]: { state: "loading" },
+      }));
+
+      try {
+        const response = await fetch("/api/mcp/tools/list", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            server: {
+              id: serverId,
+              url: endpoint,
+              headers: target.headers
+                .filter((header) => header.key.trim() && header.value.trim())
+                .map((header) => ({
+                  key: header.key.trim(),
+                  value: header.value.trim(),
+                })),
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          let message = errorText || "同步工具失败";
+
+          try {
+            const parsed = JSON.parse(errorText) as { error?: string };
+            if (parsed?.error) {
+              message = parsed.error;
+            }
+          } catch {
+            // ignore JSON parse errors and fall back to raw response text
+          }
+
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as {
+          tools?: Array<{ name: string; description?: string }>;
+        };
+        const tools = Array.isArray(payload.tools) ? payload.tools : [];
+
+        setMcpServerTools(
+          serverId,
+          tools.map((tool) => ({
+            name: tool.name,
+            description: tool.description,
+            lastSyncedAt: new Date().toISOString(),
+          }))
+        );
+
+        setSyncStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            state: "success",
+            message:
+              tools.length > 0
+                ? `已同步 ${tools.length} 个工具`
+                : "未从服务获取到工具",
+          },
+        }));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "同步工具失败";
+        setSyncStatus((prev) => ({
+          ...prev,
+          [serverId]: {
+            state: "error",
+            message,
+          },
+        }));
+      }
+    },
+    [getMcpRuntimeServer, setMcpServerTools]
+  );
+
+  const handleToggleTool = useCallback(
+    (serverId: string, toolName: string, enabled: boolean) => {
+      toggleMcpTool(serverId, toolName, enabled);
+    },
+    [toggleMcpTool]
+  );
+
+  const formatTimestamp = useCallback((value?: string) => {
+    if (!value) {
+      return "";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return date.toLocaleString();
+  }, []);
 
   // 手动刷新模型
   const handleRefreshModels = async () => {
@@ -840,6 +1084,328 @@ export function ApiSettingsDialog() {
     );
   };
 
+  const renderMcpSection = () => {
+    const isEnabled = mcpSettings.enabled;
+    const runtimeServers = runtimeMcpConfig.servers;
+
+    return (
+      <div className="flex h-full flex-col">
+        <div className="border-b border-border/60 px-6 py-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-1">
+              <h3 className="text-lg font-semibold text-foreground">
+                Model Context Protocol
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                连接实现 MCP HTTP transport 的服务，使助手可以在对话中调用工具。
+              </p>
+            </div>
+            <div className="flex items-center gap-3 self-end md:self-auto">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {isEnabled ? "已启用" : "已关闭"}
+              </span>
+              <button
+                type="button"
+                onClick={handleToggleMcpEnabled}
+                className={cn(
+                  "relative inline-flex h-6 w-11 items-center rounded-full border border-border/70 transition-colors",
+                  isEnabled ? "bg-primary/90" : "bg-muted"
+                )}
+                aria-pressed={isEnabled}
+              >
+                <span
+                  className={cn(
+                    "inline-block h-4 w-4 rounded-full bg-card transition-transform",
+                    isEnabled ? "translate-x-5" : "translate-x-1"
+                  )}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          {mcpSettings.servers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/70 bg-card/80 p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                {isEnabled
+                  ? "还没有配置 MCP 服务，点击下方按钮开始。"
+                  : "启用 MCP 后可以在这里配置服务和工具。"}
+              </p>
+            </div>
+          ) : (
+            mcpSettings.servers.map((server) => {
+              const runtimeServer =
+                runtimeServers.find((item) => item.id === server.id) ?? null;
+              const headers = runtimeServer?.headers ?? [];
+              const syncState = syncStatus[server.id] ?? { state: "idle" };
+              const lastSyncedAt = server.tools.reduce<string | undefined>(
+                (latest, tool) => {
+                  if (!tool.lastSyncedAt) {
+                    return latest;
+                  }
+                  if (!latest) {
+                    return tool.lastSyncedAt;
+                  }
+                  return tool.lastSyncedAt > latest ? tool.lastSyncedAt : latest;
+                },
+                undefined
+              );
+              const isExpanded = expandedServers.has(server.id);
+
+              return (
+                <div
+                  key={server.id}
+                  className="rounded-2xl border border-border/70 bg-card/80"
+                >
+                  {/* Header row (collapsible) */}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                    onClick={() => toggleServerExpanded(server.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {server.name || "MCP Server"}
+                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="truncate text-sm text-muted-foreground max-w-[40%]">
+                      {server.url || "未配置 URL"}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {server.tools.length > 0 ? `工具 ${server.tools.length}` : "无工具"}
+                      {lastSyncedAt ? ` · 同步 ${formatTimestamp(lastSyncedAt)}` : ""}
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")}/>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="space-y-4 border-t border-border/60 p-4">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div className="w-full md:max-w-sm">
+                          <Label className="text-sm font-medium">显示名称</Label>
+                          <Input
+                            type="text"
+                            value={server.name}
+                            onChange={(event) =>
+                              updateMcpServerMetadata(server.id, {
+                                name: event.target.value,
+                              })
+                            }
+                            disabled={!isEnabled}
+                            className={cn(settingsFieldClass, "mt-1")}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSyncTools(server.id)}
+                            disabled={!isEnabled || syncState.state === "loading"}
+                          >
+                            {syncState.state === "loading" ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            同步工具
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleRemoveServer(server.id)}
+                            disabled={!isEnabled}
+                            aria-label="删除 MCP 服务"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">服务地址</Label>
+                        <Input
+                          type="text"
+                          value={server.url}
+                          onChange={(event) =>
+                            updateMcpServerMetadata(server.id, {
+                              url: event.target.value,
+                            })
+                          }
+                          placeholder="https://example.com/mcp"
+                          disabled={!isEnabled}
+                          className={cn(settingsFieldClass)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">HTTP Headers</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAddHeader(server.id)}
+                            disabled={!isEnabled}
+                          >
+                            <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            添加 Header
+                          </Button>
+                        </div>
+                        {headers.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
+                            尚未配置 Header。
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {headers.map((header) => (
+                              <div
+                                key={header.id}
+                                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+                              >
+                                <Input
+                                  type="text"
+                                  value={header.key}
+                                  onChange={(event) =>
+                                    handleHeaderKeyChange(
+                                      server.id,
+                                      header.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Authorization"
+                                  disabled={!isEnabled}
+                                  className={cn(settingsFieldClass)}
+                                />
+                                <Input
+                                  type="text"
+                                  value={header.value}
+                                  onChange={(event) =>
+                                    handleHeaderValueChange(
+                                      server.id,
+                                      header.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Bearer xxx"
+                                  disabled={!isEnabled}
+                                  className={cn(settingsFieldClass)}
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleRemoveHeader(server.id, header.id)
+                                  }
+                                  disabled={!isEnabled}
+                                  aria-label="删除 Header"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">工具列表</Label>
+                          {lastSyncedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              最近同步：{formatTimestamp(lastSyncedAt)}
+                            </span>
+                          )}
+                        </div>
+                        {server.tools.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
+                            还没有可用工具，尝试同步以获取服务提供的工具。
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {server.tools.map((tool) => (
+                              <div
+                                key={tool.name}
+                                className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2"
+                              >
+                                <div className="min-w-0 pr-4">
+                                  <p className="truncate text-sm font-medium text-foreground">
+                                    {tool.name}
+                                  </p>
+                                  {tool.description && (
+                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                      {tool.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleTool(
+                                      server.id,
+                                      tool.name,
+                                      !tool.enabled
+                                    )
+                                  }
+                                  disabled={!isEnabled}
+                                  className={cn(
+                                    "relative inline-flex h-6 w-12 shrink-0 items-center rounded-full border border-border/70 transition-colors",
+                                    tool.enabled ? "bg-primary/90" : "bg-muted"
+                                  )}
+                                  aria-pressed={tool.enabled}
+                                  aria-label={tool.enabled ? "禁用工具" : "启用工具"}
+                                >
+                                  <span
+                                    className={cn(
+                                      "inline-block h-4 w-4 rounded-full bg-card transition-transform",
+                                      tool.enabled ? "translate-x-6" : "translate-x-1"
+                                    )}
+                                  />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {syncState.state !== "idle" && syncState.message && (
+                        <p
+                          className={cn(
+                            "text-xs",
+                            syncState.state === "error"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {syncState.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+
+          <div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAddServer}
+              disabled={!isEnabled}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              新增 MCP 服务
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderExtensionsSection = () => {
     return (
       <div className="flex h-full min-h-0 bg-card">
@@ -892,9 +1458,7 @@ export function ApiSettingsDialog() {
           "Manage shared prompt templates and quick replies."
         );
       case "mcp":
-        return renderPlaceholderSection(
-          "Connect MCP-compatible tools and data sources."
-        );
+        return renderMcpSection();
       case "extensions":
         return renderExtensionsSection();
       case "advanced":
