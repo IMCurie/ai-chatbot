@@ -50,6 +50,45 @@ export interface ExtensionSettings {
   searchConfig?: SearchExtensionConfig;
 }
 
+export interface McpToolSetting {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  lastSyncedAt?: string;
+}
+
+export interface McpHeaderEntry {
+  id: string;
+  key: string;
+  value: string; // Encrypted value
+}
+
+export interface McpServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  headers: McpHeaderEntry[];
+  tools: McpToolSetting[];
+}
+
+export interface McpSettings {
+  enabled: boolean;
+  servers: McpServerConfig[];
+}
+
+export interface McpRuntimeServerConfig {
+  id: string;
+  name: string;
+  url: string;
+  headers: Array<{ id: string; key: string; value: string }>;
+  enabledTools: string[];
+}
+
+export interface McpRuntimeConfig {
+  enabled: boolean;
+  servers: McpRuntimeServerConfig[];
+}
+
 const DEFAULT_SEARCH_CONFIG: SearchExtensionConfig = {
   queryModelProvider: "google",
   queryModelId: "gemini-2.5-flash",
@@ -78,12 +117,103 @@ const decryptApiKey = (encryptedKey: string): string => {
   return bytes.toString(CryptoJS.enc.Utf8);
 };
 
+const generateId = () => {
+  if (typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return `mcp-${Math.random().toString(36).slice(2, 11)}`;
+};
+
+const encryptHeaders = (
+  headers: Array<{ id?: string; key: string; value: string }>,
+  previous?: McpHeaderEntry[]
+): McpHeaderEntry[] => {
+  const previousMap = new Map<string, McpHeaderEntry>();
+  previous?.forEach((entry) => {
+    previousMap.set(entry.id, entry);
+  });
+
+  const result: McpHeaderEntry[] = [];
+
+  headers.forEach(({ id, key, value }) => {
+    const headerKey = typeof key === "string" ? key.trim() : "";
+    const headerValue = typeof value === "string" ? value.trim() : "";
+
+    const headerId = id && previousMap.has(id) ? id : generateId();
+
+    try {
+      result.push({
+        id: headerId,
+        key: headerKey,
+        value: encryptApiKey(headerValue),
+      });
+    } catch (error) {
+      console.error("Failed to encrypt MCP header", error);
+    }
+  });
+
+  return result;
+};
+
+const decryptHeaders = (headers: McpHeaderEntry[]) => {
+  const result: Array<{ id: string; key: string; value: string }> = [];
+
+  headers.forEach((entry) => {
+    try {
+      const value = decryptApiKey(entry.value);
+      result.push({
+        id: entry.id,
+        key: typeof entry.key === "string" ? entry.key : "",
+        value,
+      });
+    } catch (error) {
+      console.error(`Failed to decrypt MCP header ${entry.key}:`, error);
+    }
+  });
+
+  return result;
+};
+
+const mergeToolSettings = (
+  incoming: Array<Partial<McpToolSetting> & { name: string }>,
+  existing: McpToolSetting[]
+) => {
+  const existingMap = new Map<string, McpToolSetting>();
+  existing.forEach((tool) => {
+    existingMap.set(tool.name, tool);
+  });
+
+  return incoming.map<McpToolSetting>((tool) => {
+    const previous = existingMap.get(tool.name);
+    const enabled =
+      typeof tool.enabled === "boolean"
+        ? tool.enabled
+        : previous?.enabled ?? true;
+
+    const description =
+      tool.description !== undefined
+        ? tool.description
+        : previous?.description;
+
+    const lastSyncedAt =
+      tool.lastSyncedAt ?? previous?.lastSyncedAt ?? new Date().toISOString();
+
+    return {
+      name: tool.name,
+      description,
+      enabled,
+      lastSyncedAt,
+    };
+  });
+};
+
 interface ChatStore {
   chats: Chat[];
   model: Model | null;
   apiKeys: ApiKeys;
   apiBaseUrls: ApiBaseUrls;
   extensionSettings: ExtensionSettings;
+  mcpSettings: McpSettings;
   allAvailableModels: Model[];  // 所有获取的模型
   availableModels: Model[];     // 仅启用的模型（计算属性）
   enabledModelIds: Set<string>; // 启用的模型ID集合
@@ -120,6 +250,28 @@ interface ChatStore {
   setSearchExtensionConfig: (config: Partial<SearchExtensionConfig>) => void;
   getSearchExtensionConfig: () => SearchExtensionConfig;
 
+  // MCP settings
+  setMcpEnabled: (enabled: boolean) => void;
+  addMcpServer: (config: {
+    name: string;
+    url: string;
+    headers?: Array<{ key: string; value: string }>;
+    tools?: Array<Partial<McpToolSetting> & { name: string }>;
+  }) => McpServerConfig;
+  removeMcpServer: (serverId: string) => void;
+  updateMcpServerMetadata: (serverId: string, metadata: { name?: string; url?: string }) => void;
+  setMcpServerHeaders: (
+    serverId: string,
+    headers: Array<{ id?: string; key: string; value: string }>
+  ) => void;
+  setMcpServerTools: (
+    serverId: string,
+    tools: Array<Partial<McpToolSetting> & { name: string }>
+  ) => void;
+  toggleMcpTool: (serverId: string, toolName: string, enabled?: boolean) => void;
+  getMcpRuntimeConfig: () => McpRuntimeConfig;
+  getMcpRuntimeServer: (serverId: string) => McpRuntimeServerConfig | null;
+
   // Dynamic model management
   fetchModels: () => Promise<void>;
   refreshModels: () => Promise<void>;
@@ -141,6 +293,10 @@ export const useChatStore = create<ChatStore>()(
       apiBaseUrls: {},
       extensionSettings: {
         searchConfig: { ...DEFAULT_SEARCH_CONFIG },
+      },
+      mcpSettings: {
+        enabled: false,
+        servers: [],
       },
       allAvailableModels: [],
       availableModels: [],
@@ -374,6 +530,200 @@ export const useChatStore = create<ChatStore>()(
         };
       },
 
+      setMcpEnabled: (enabled) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            enabled,
+          },
+        }));
+      },
+
+      addMcpServer: ({ name, url, headers, tools }) => {
+        const serverId = generateId();
+        const sanitizedName = name.trim() || "MCP Server";
+        const sanitizedUrl = url.trim();
+
+        const headerInputs = Array.isArray(headers) ? headers : [];
+
+        const encryptedHeaders = encryptHeaders(headerInputs);
+        const normalizedTools = Array.isArray(tools)
+          ? mergeToolSettings(tools, [])
+          : [];
+
+        const server: McpServerConfig = {
+          id: serverId,
+          name: sanitizedName,
+          url: sanitizedUrl,
+          headers: encryptedHeaders,
+          tools: normalizedTools,
+        };
+
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: [...state.mcpSettings.servers, server],
+          },
+        }));
+
+        return server;
+      },
+
+      removeMcpServer: (serverId) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: state.mcpSettings.servers.filter(
+              (server) => server.id !== serverId
+            ),
+          },
+        }));
+      },
+
+      updateMcpServerMetadata: (serverId, metadata) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: state.mcpSettings.servers.map((server) => {
+              if (server.id !== serverId) {
+                return server;
+              }
+
+              const nextName =
+                metadata.name !== undefined ? metadata.name : server.name;
+              const nextUrl =
+                metadata.url !== undefined
+                  ? metadata.url.trim()
+                  : server.url;
+
+              return {
+                ...server,
+                name: nextName,
+                url: nextUrl,
+              };
+            }),
+          },
+        }));
+      },
+
+      setMcpServerHeaders: (serverId, headers) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: state.mcpSettings.servers.map((server) => {
+              if (server.id !== serverId) {
+                return server;
+              }
+
+              return {
+                ...server,
+                headers: encryptHeaders(headers, server.headers),
+              };
+            }),
+          },
+        }));
+      },
+
+      setMcpServerTools: (serverId, tools) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: state.mcpSettings.servers.map((server) => {
+              if (server.id !== serverId) {
+                return server;
+              }
+
+              const merged = mergeToolSettings(tools, server.tools);
+
+              return {
+                ...server,
+                tools: merged,
+              };
+            }),
+          },
+        }));
+      },
+
+      toggleMcpTool: (serverId, toolName, enabled) => {
+        set((state) => ({
+          mcpSettings: {
+            ...state.mcpSettings,
+            servers: state.mcpSettings.servers.map((server) => {
+              if (server.id !== serverId) {
+                return server;
+              }
+
+              const updatedTools = server.tools.map((tool) => {
+                if (tool.name !== toolName) {
+                  return tool;
+                }
+
+                const nextEnabled =
+                  typeof enabled === "boolean" ? enabled : !tool.enabled;
+
+                return {
+                  ...tool,
+                  enabled: nextEnabled,
+                };
+              });
+
+              return {
+                ...server,
+                tools: updatedTools,
+              };
+            }),
+          },
+        }));
+      },
+
+      getMcpRuntimeConfig: () => {
+        const state = get();
+        const runtimeServers: McpRuntimeServerConfig[] = state.mcpSettings.servers
+          .map((server) => ({
+            id: server.id,
+            name: server.name,
+            url: server.url,
+            headers: decryptHeaders(server.headers).map((header) => ({
+              id: header.id,
+              key: header.key,
+              value: header.value,
+            })),
+            enabledTools: server.tools
+              .filter((tool) => tool.enabled !== false)
+              .map((tool) => tool.name),
+          }));
+
+        return {
+          enabled: state.mcpSettings.enabled,
+          servers: runtimeServers,
+        };
+      },
+
+      getMcpRuntimeServer: (serverId) => {
+        const state = get();
+        const target = state.mcpSettings.servers.find(
+          (server) => server.id === serverId
+        );
+
+        if (!target) {
+          return null;
+        }
+
+        return {
+          id: target.id,
+          name: target.name,
+          url: target.url,
+          headers: decryptHeaders(target.headers).map((header) => ({
+            id: header.id,
+            key: header.key,
+            value: header.value,
+          })),
+          enabledTools: target.tools
+            .filter((tool) => tool.enabled !== false)
+            .map((tool) => tool.name),
+        } satisfies McpRuntimeServerConfig;
+      },
+
       // Dynamic model management
       fetchModels: async () => {
         if (modelsFetchInFlight) return modelsFetchInFlight;
@@ -537,6 +887,7 @@ export const useChatStore = create<ChatStore>()(
         apiKeys: state.apiKeys,
         apiBaseUrls: state.apiBaseUrls,
         extensionSettings: state.extensionSettings,
+        mcpSettings: state.mcpSettings,
         allAvailableModels: state.allAvailableModels,
         enabledModelIds: Array.from(state.enabledModelIds), // 序列化Set为数组
       }),
@@ -562,6 +913,88 @@ export const useChatStore = create<ChatStore>()(
           state.extensionSettings.searchConfig.maxResults = clampSearchResults(
             state.extensionSettings.searchConfig.maxResults
           );
+        }
+
+        if (!state.mcpSettings) {
+          state.mcpSettings = { enabled: false, servers: [] };
+        } else {
+          state.mcpSettings.enabled = Boolean(state.mcpSettings.enabled);
+
+          if (!Array.isArray(state.mcpSettings.servers)) {
+            state.mcpSettings.servers = [];
+          } else {
+            state.mcpSettings.servers = state.mcpSettings.servers
+              .map((server) => {
+                if (!server || typeof server !== "object") {
+                  return null;
+                }
+
+                const id =
+                  typeof server.id === "string" && server.id.trim()
+                    ? server.id
+                    : generateId();
+                const name =
+                  typeof server.name === "string" && server.name.trim()
+                    ? server.name
+                    : "MCP Server";
+                const url =
+                  typeof server.url === "string" ? server.url : "";
+
+                const headers: McpHeaderEntry[] = Array.isArray(server.headers)
+                  ? server.headers
+                      .map((header) => {
+                        if (!header || typeof header !== "object") {
+                          return null;
+                        }
+
+                        const headerId =
+                          typeof header.id === "string" && header.id.trim()
+                            ? header.id
+                            : generateId();
+                        return {
+                          id: headerId,
+                          key:
+                            typeof header.key === "string" ? header.key : "",
+                          value:
+                            typeof header.value === "string"
+                              ? header.value
+                              : "",
+                        } satisfies McpHeaderEntry;
+                      })
+                      .filter((entry): entry is McpHeaderEntry => entry !== null)
+                  : [];
+
+                const tools: McpToolSetting[] = Array.isArray(server.tools)
+                  ? server.tools
+                      .filter(
+                        (tool): tool is McpToolSetting & { lastSyncedAt?: string } =>
+                          !!tool && typeof tool.name === "string"
+                      )
+                      .map((tool) => ({
+                        name: tool.name,
+                        description:
+                          typeof tool.description === "string"
+                            ? tool.description
+                            : undefined,
+                        enabled:
+                          typeof tool.enabled === "boolean" ? tool.enabled : true,
+                        lastSyncedAt:
+                          typeof tool.lastSyncedAt === "string"
+                            ? tool.lastSyncedAt
+                            : undefined,
+                      }))
+                  : [];
+
+                return {
+                  id,
+                  name,
+                  url,
+                  headers,
+                  tools,
+                } satisfies McpServerConfig;
+              })
+              .filter((server): server is McpServerConfig => server !== null);
+          }
         }
 
         const persistedIds = state.enabledModelIds as unknown;

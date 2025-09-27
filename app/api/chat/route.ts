@@ -10,7 +10,12 @@ import {
   type GoogleGenerativeAIProviderSettings,
 } from "@ai-sdk/google";
 import { createXai, type XaiProviderSettings } from "@ai-sdk/xai";
-import { convertToModelMessages, streamText, type UIMessage } from "ai";
+import {
+  convertToModelMessages,
+  streamText,
+  stepCountIs,
+  type UIMessage,
+} from "ai";
 
 type ProviderModelInstance =
   | ReturnType<ReturnType<typeof createOpenAI>>
@@ -20,6 +25,11 @@ type ProviderModelInstance =
   | ReturnType<ReturnType<typeof createOpenRouter>["chat"]>;
 import { Model } from "@/lib/models";
 import { ApiKeys, ApiBaseUrls } from "@/lib/store";
+import {
+  loadMcpToolsForChat,
+  type McpChatServerConfig,
+  type McpToolSummary,
+} from "@/lib/mcp-client";
 
 interface SearchResultPayload {
   id: string;
@@ -39,16 +49,100 @@ interface NetworkSearchPayload {
   excludeWebsites?: string;
 }
 
+interface IncomingMcpServer {
+  id?: string;
+  url?: string;
+  headers?: Array<{ id?: string; key?: string; value?: string }>;
+  enabledTools?: string[];
+}
+
+interface IncomingMcpConfig {
+  enabled?: boolean;
+  servers?: IncomingMcpServer[];
+}
+
 interface ChatRequestBody {
   messages?: UIMessage[];
   model?: Model;
   apiKeys?: ApiKeys;
   baseUrls?: ApiBaseUrls;
   search?: NetworkSearchPayload | null;
+  mcp?: IncomingMcpConfig;
 }
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
+
+const normalizeMcpServers = (
+  config?: IncomingMcpConfig
+): McpChatServerConfig[] | null => {
+  if (!config || !config.enabled) {
+    return null;
+  }
+
+  if (!Array.isArray(config.servers)) {
+    return null;
+  }
+
+  const servers = config.servers
+    .map((server, index) => {
+      if (!server || typeof server !== "object") {
+        return null;
+      }
+
+      const urlValue =
+        typeof server.url === "string" ? server.url.trim() : "";
+
+      if (!urlValue) {
+        return null;
+      }
+
+      let validatedUrl: string;
+      try {
+        const parsed = new URL(urlValue);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          return null;
+        }
+        validatedUrl = parsed.toString();
+      } catch {
+        return null;
+      }
+
+      const headers = Array.isArray(server.headers)
+        ? server.headers
+            .map((header) => ({
+              key:
+                typeof header?.key === "string"
+                  ? header.key.trim()
+                  : "",
+              value:
+                typeof header?.value === "string"
+                  ? header.value.trim()
+                  : "",
+            }))
+            .filter((header) => header.key && header.value)
+        : [];
+
+      const enabledTools = Array.isArray(server.enabledTools)
+        ? server.enabledTools.filter(
+            (tool): tool is string => typeof tool === "string"
+          )
+        : undefined;
+
+      return {
+        id:
+          typeof server.id === "string" && server.id.trim()
+            ? server.id
+            : `server-${index}`,
+        url: validatedUrl,
+        headers,
+        enabledTools,
+      } satisfies McpChatServerConfig;
+    })
+    .filter((server): server is McpChatServerConfig => server !== null);
+
+  return servers.length > 0 ? servers : null;
+};
 
 function getProvider(
   model: Model,
@@ -137,12 +231,15 @@ function getProvider(
 
 export async function POST(req: Request) {
   const body = (await req.json()) as unknown;
-  const { messages, model, apiKeys, baseUrls, search } =
+  const { messages, model, apiKeys, baseUrls, search, mcp } =
     (body ?? {}) as ChatRequestBody;
 
   if (!model || !model.id || !model.provider) {
     return new Response("Model information is required", { status: 400 });
   }
+
+  let cleanupMcp: (() => Promise<void>) | null = null;
+  let cleanupInvoked = false;
 
   try {
     const provider = getProvider(model, apiKeys, baseUrls);
@@ -151,6 +248,7 @@ export async function POST(req: Request) {
     const modelMessages = convertToModelMessages(uiMessages);
 
     const baseSystemPrompt = "You are a helpful assistant.";
+    const systemPromptSections: string[] = [baseSystemPrompt];
     const searchResults = Array.isArray(search?.results)
       ? search.results.filter((result): result is SearchResultPayload => {
           return (
@@ -161,8 +259,6 @@ export async function POST(req: Request) {
           );
         })
       : [];
-
-    let systemPrompt = baseSystemPrompt;
 
     if (search?.query && searchResults.length > 0) {
       const providerLabel = search.provider?.trim() || "web search";
@@ -199,17 +295,94 @@ export async function POST(req: Request) {
         })
         .join("\n");
 
-      systemPrompt = `${baseSystemPrompt}\n\nYou have access to the following ${providerDetails} results collected for the latest user request "${search.query}". Use them to ground your answer when relevant. Cite sources inline using [index] references, e.g. [1]. If the results are insufficient or conflicting, acknowledge it.\n\nSearch results:\n${formattedRows}`;
+      systemPromptSections.push(
+        `You have access to the following ${providerDetails} results collected for the latest user request "${search.query}". Use them to ground your answer when relevant. Cite sources inline using [index] references, e.g. [1]. If the results are insufficient or conflicting, acknowledge it.\n\nSearch results:\n${formattedRows}`
+      );
     }
+
+    const normalizedMcpServers = normalizeMcpServers(mcp);
+    let mcpTools: Record<string, unknown> | null = null;
+    let mcpToolSummaries: McpToolSummary[] = [];
+
+    if (normalizedMcpServers) {
+      const { tools, cleanup, warnings, toolSummaries } = await loadMcpToolsForChat(
+        normalizedMcpServers
+      );
+
+      if (warnings.length > 0) {
+        warnings.forEach((warning) =>
+          console.warn(`[MCP] ${warning}`)
+        );
+      }
+
+      if (Object.keys(tools).length > 0) {
+        mcpTools = tools;
+        cleanupMcp = cleanup;
+        mcpToolSummaries = toolSummaries;
+      } else {
+        // still run cleanup in case any transports were opened
+        cleanupMcp = cleanup;
+      }
+    }
+
+    if (mcpToolSummaries.length > 0) {
+      const toolGuidance =
+        "You can call external MCP tools when they provide fresher or more detailed information than your internal knowledge. After using a tool, summarize the findings in your own words instead of copying the raw output. If no tool is relevant, answer directly.";
+
+      const formattedTools = mcpToolSummaries
+        .map((summary) => {
+          const details = [summary.serverId];
+          if (summary.description) {
+            details.push(summary.description.replace(/\s+/g, " ").trim());
+          }
+          return `- ${summary.name}: ${details.join(" — ")}`;
+        })
+        .join("\n");
+
+      systemPromptSections.push(
+        `${toolGuidance}\n\nAvailable MCP tools:\n${formattedTools}`
+      );
+    }
+
+    const systemPrompt = systemPromptSections.join("\n\n");
 
     const result = streamText({
       model: provider,
       system: systemPrompt,
       messages: modelMessages,
+      ...(mcpTools ? { tools: mcpTools } : {}),
+      stopWhen: stepCountIs(4),
+      maxSteps: 6,
     });
 
-    return result.toUIMessageStreamResponse();
+    const safeCleanup = async () => {
+      if (!cleanupMcp || cleanupInvoked) {
+        return;
+      }
+      cleanupInvoked = true;
+      try {
+        await cleanupMcp();
+      } catch (cleanupError) {
+        console.warn("[MCP] Failed to close MCP clients", cleanupError);
+      }
+    };
+
+    return result.toUIMessageStreamResponse({
+      onFinish: async () => {
+        await safeCleanup();
+      },
+      onError: async () => {
+        await safeCleanup();
+      },
+    });
   } catch (error) {
+    if (cleanupMcp && !cleanupInvoked) {
+      try {
+        await cleanupMcp();
+      } catch {
+        // ignore cleanup failures when bubbling errors
+      }
+    }
     console.error("Error in chat route:", error);
     
     // Return more specific error messages for API key issues
