@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Globe, Loader2 } from "lucide-react";
+import { Globe, Loader2, Hammer } from "lucide-react";
 
 import { SendButton, StopButton } from "@/components/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,10 @@ export default function Input({
   networkSearchAvailable = true,
   networkSearchLoading = false,
   showNetworkSearchToggle = true,
+  mcpEnabled = false,
+  onToggleMcp,
+  showMcpToggle = true,
+  mcpAvailable = true,
 }: {
   inputValue: string;
   onInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -30,13 +34,19 @@ export default function Input({
   networkSearchAvailable?: boolean;
   networkSearchLoading?: boolean;
   showNetworkSearchToggle?: boolean;
+  mcpEnabled?: boolean;
+  onToggleMcp?: (value: boolean) => void;
+  showMcpToggle?: boolean;
+  mcpAvailable?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const hasInput = inputValue.trim().length > 0;
   const showNetworkSearchControls =
     typeof onToggleNetworkSearch === "function" && showNetworkSearchToggle;
+  const showMcpControls = typeof onToggleMcp === "function" && showMcpToggle;
 
   const networkToggleLabel = networkSearchEnabled ? "关闭联网搜索" : "开启联网搜索";
+  const mcpToggleLabel = mcpEnabled ? "关闭 MCP" : "开启 MCP";
 
   return (
     <div className="relative rounded-3xl border border-neutral-200 bg-white shadow-sm">
@@ -97,6 +107,28 @@ export default function Input({
                 {!networkSearchAvailable && (
                   <span className="text-xs">请在设置中配置 Tavily API Key</span>
                 )}
+              </>
+            )}
+            {showMcpControls && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => mcpAvailable && onToggleMcp?.(!mcpEnabled)}
+                  className={cn(
+                    "relative inline-flex h-8 w-8 items-center justify-center rounded-full border transition",
+                    mcpEnabled
+                      ? "border-primary/60 bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-sidebar text-muted-foreground hover:bg-muted",
+                    !mcpAvailable && "cursor-not-allowed opacity-40"
+                  )}
+                  aria-pressed={mcpEnabled}
+                  aria-label={mcpToggleLabel}
+                  title={mcpToggleLabel}
+                  disabled={!mcpAvailable}
+                >
+                  <Hammer className="h-4 w-4" />
+                  <span className="sr-only">{mcpToggleLabel}</span>
+                </button>
               </>
             )}
           </div>

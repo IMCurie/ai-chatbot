@@ -45,6 +45,8 @@ export default function Chat({ id }: { id: string }) {
     getTavilyApiKey,
     getSearchExtensionConfig,
     getMcpRuntimeConfig,
+    mcpSettings,
+    setMcpEnabled,
   } = useChatStore();
 
   const tavilyApiKey = getTavilyApiKey();
@@ -327,6 +329,13 @@ export default function Chat({ id }: { id: string }) {
     [hasTavilyKey]
   );
 
+  const handleMcpToggle = useCallback(
+    (nextValue?: boolean) => {
+      setMcpEnabled(typeof nextValue === "boolean" ? nextValue : !mcpSettings.enabled);
+    },
+    [mcpSettings.enabled, setMcpEnabled]
+  );
+
   const handleToggleSearchSession = useCallback((messageId: string) => {
     setSearchSessions((prev) =>
       prev.map((session) =>
@@ -446,6 +455,9 @@ export default function Chat({ id }: { id: string }) {
                       (session) => session.status === "processing"
                     )}
                     showNetworkSearchToggle={isHydrated}
+                    mcpEnabled={mcpSettings.enabled}
+                    onToggleMcp={handleMcpToggle}
+                    showMcpToggle={isHydrated}
                   />
                 </div>
               </div>

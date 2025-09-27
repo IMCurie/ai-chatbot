@@ -24,13 +24,14 @@ import {
   Loader2,
   Router,
   Server,
-  Workflow,
+  Hammer,
   Ellipsis,
   type LucideIcon,
   Sparkle,
   Bot,
   Plus,
   Trash2,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelProvider, getModelsByProvider } from "@/lib/models";
@@ -98,7 +99,7 @@ const settingsSections: SettingsSection[] = [
     id: "mcp",
     label: "MCP",
     description: "Connect Model Context Protocol tools and services",
-    icon: Workflow,
+    icon: Hammer,
   },
   {
     id: "extensions",
@@ -286,6 +287,15 @@ export function ApiSettingsDialog() {
   );
 
   const runtimeMcpConfig = getMcpRuntimeConfig();
+  const [expandedServers, setExpandedServers] = useState<Set<string>>(new Set());
+  const toggleServerExpanded = useCallback((id: string) => {
+    setExpandedServers((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!mcpSettings.enabled) {
@@ -1141,213 +1151,239 @@ export function ApiSettingsDialog() {
                 },
                 undefined
               );
+              const isExpanded = expandedServers.has(server.id);
 
               return (
                 <div
                   key={server.id}
-                  className="space-y-4 rounded-2xl border border-border/70 bg-card/80 p-4"
+                  className="rounded-2xl border border-border/70 bg-card/80"
                 >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div className="w-full md:max-w-sm">
-                      <Label className="text-sm font-medium">显示名称</Label>
-                      <Input
-                        type="text"
-                        value={server.name}
-                        onChange={(event) =>
-                          updateMcpServerMetadata(server.id, {
-                            name: event.target.value,
-                          })
-                        }
-                        disabled={!isEnabled}
-                        className={cn(settingsFieldClass, "mt-1")}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleSyncTools(server.id)}
-                        disabled={!isEnabled || syncState.state === "loading"}
-                      >
-                        {syncState.state === "loading" ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {/* Header row (collapsible) */}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                    onClick={() => toggleServerExpanded(server.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {server.name || "MCP Server"}
+                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span className="truncate text-sm text-muted-foreground max-w-[40%]">
+                      {server.url || "未配置 URL"}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {server.tools.length > 0 ? `工具 ${server.tools.length}` : "无工具"}
+                      {lastSyncedAt ? ` · 同步 ${formatTimestamp(lastSyncedAt)}` : ""}
+                    </span>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isExpanded && "rotate-180")}/>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="space-y-4 border-t border-border/60 p-4">
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                        <div className="w-full md:max-w-sm">
+                          <Label className="text-sm font-medium">显示名称</Label>
+                          <Input
+                            type="text"
+                            value={server.name}
+                            onChange={(event) =>
+                              updateMcpServerMetadata(server.id, {
+                                name: event.target.value,
+                              })
+                            }
+                            disabled={!isEnabled}
+                            className={cn(settingsFieldClass, "mt-1")}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSyncTools(server.id)}
+                            disabled={!isEnabled || syncState.state === "loading"}
+                          >
+                            {syncState.state === "loading" ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            同步工具
+                          </Button>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleRemoveServer(server.id)}
+                            disabled={!isEnabled}
+                            aria-label="删除 MCP 服务"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">服务地址</Label>
+                        <Input
+                          type="text"
+                          value={server.url}
+                          onChange={(event) =>
+                            updateMcpServerMetadata(server.id, {
+                              url: event.target.value,
+                            })
+                          }
+                          placeholder="https://example.com/mcp"
+                          disabled={!isEnabled}
+                          className={cn(settingsFieldClass)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">HTTP Headers</Label>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAddHeader(server.id)}
+                            disabled={!isEnabled}
+                          >
+                            <Plus className="mr-1.5 h-3.5 w-3.5" />
+                            添加 Header
+                          </Button>
+                        </div>
+                        {headers.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
+                            尚未配置 Header。
+                          </p>
                         ) : (
-                          <RefreshCw className="mr-2 h-4 w-4" />
+                          <div className="space-y-2">
+                            {headers.map((header) => (
+                              <div
+                                key={header.id}
+                                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+                              >
+                                <Input
+                                  type="text"
+                                  value={header.key}
+                                  onChange={(event) =>
+                                    handleHeaderKeyChange(
+                                      server.id,
+                                      header.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Authorization"
+                                  disabled={!isEnabled}
+                                  className={cn(settingsFieldClass)}
+                                />
+                                <Input
+                                  type="text"
+                                  value={header.value}
+                                  onChange={(event) =>
+                                    handleHeaderValueChange(
+                                      server.id,
+                                      header.id,
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Bearer xxx"
+                                  disabled={!isEnabled}
+                                  className={cn(settingsFieldClass)}
+                                />
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleRemoveHeader(server.id, header.id)
+                                  }
+                                  disabled={!isEnabled}
+                                  aria-label="删除 Header"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                        同步工具
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleRemoveServer(server.id)}
-                        disabled={!isEnabled}
-                        aria-label="删除 MCP 服务"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium">服务地址</Label>
-                    <Input
-                      type="text"
-                      value={server.url}
-                      onChange={(event) =>
-                        updateMcpServerMetadata(server.id, {
-                          url: event.target.value,
-                        })
-                      }
-                      placeholder="https://example.com/mcp"
-                      disabled={!isEnabled}
-                      className={cn(settingsFieldClass)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">HTTP Headers</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleAddHeader(server.id)}
-                        disabled={!isEnabled}
-                      >
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        添加 Header
-                      </Button>
-                    </div>
-                    {headers.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
-                        尚未配置 Header。
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {headers.map((header) => (
-                          <div
-                            key={header.id}
-                            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
-                          >
-                            <Input
-                              type="text"
-                              value={header.key}
-                              onChange={(event) =>
-                                handleHeaderKeyChange(
-                                  server.id,
-                                  header.id,
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Authorization"
-                              disabled={!isEnabled}
-                              className={cn(settingsFieldClass)}
-                            />
-                            <Input
-                              type="text"
-                              value={header.value}
-                              onChange={(event) =>
-                                handleHeaderValueChange(
-                                  server.id,
-                                  header.id,
-                                  event.target.value
-                                )
-                              }
-                              placeholder="Bearer xxx"
-                              disabled={!isEnabled}
-                              className={cn(settingsFieldClass)}
-                            />
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              onClick={() =>
-                                handleRemoveHeader(server.id, header.id)
-                              }
-                              disabled={!isEnabled}
-                              aria-label="删除 Header"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
                       </div>
-                    )}
-                  </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">工具列表</Label>
-                      {lastSyncedAt && (
-                        <span className="text-xs text-muted-foreground">
-                          最近同步：{formatTimestamp(lastSyncedAt)}
-                        </span>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">工具列表</Label>
+                          {lastSyncedAt && (
+                            <span className="text-xs text-muted-foreground">
+                              最近同步：{formatTimestamp(lastSyncedAt)}
+                            </span>
+                          )}
+                        </div>
+                        {server.tools.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
+                            还没有可用工具，尝试同步以获取服务提供的工具。
+                          </p>
+                        ) : (
+                          <div className="space-y-2">
+                            {server.tools.map((tool) => (
+                              <div
+                                key={tool.name}
+                                className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2"
+                              >
+                                <div className="min-w-0 pr-4">
+                                  <p className="truncate text-sm font-medium text-foreground">
+                                    {tool.name}
+                                  </p>
+                                  {tool.description && (
+                                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                                      {tool.description}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleTool(
+                                      server.id,
+                                      tool.name,
+                                      !tool.enabled
+                                    )
+                                  }
+                                  disabled={!isEnabled}
+                                  className={cn(
+                                    "relative inline-flex h-6 w-12 shrink-0 items-center rounded-full border border-border/70 transition-colors",
+                                    tool.enabled ? "bg-primary/90" : "bg-muted"
+                                  )}
+                                  aria-pressed={tool.enabled}
+                                  aria-label={tool.enabled ? "禁用工具" : "启用工具"}
+                                >
+                                  <span
+                                    className={cn(
+                                      "inline-block h-4 w-4 rounded-full bg-card transition-transform",
+                                      tool.enabled ? "translate-x-6" : "translate-x-1"
+                                    )}
+                                  />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {syncState.state !== "idle" && syncState.message && (
+                        <p
+                          className={cn(
+                            "text-xs",
+                            syncState.state === "error"
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {syncState.message}
+                        </p>
                       )}
                     </div>
-                    {server.tools.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-xs text-muted-foreground">
-                        还没有可用工具，尝试同步以获取服务提供的工具。
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {server.tools.map((tool) => (
-                          <div
-                            key={tool.name}
-                            className="flex items-center justify-between rounded-xl border border-border/70 px-3 py-2"
-                          >
-                            <div className="min-w-0 pr-4">
-                              <p className="truncate text-sm font-medium text-foreground">
-                                {tool.name}
-                              </p>
-                              {tool.description && (
-                                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                                  {tool.description}
-                                </p>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleToggleTool(
-                                  server.id,
-                                  tool.name,
-                                  !tool.enabled
-                                )
-                              }
-                              disabled={!isEnabled}
-                              className={cn(
-                                "relative inline-flex h-6 w-11 items-center rounded-full border border-border/70 transition-colors",
-                                tool.enabled ? "bg-primary/90" : "bg-muted"
-                              )}
-                              aria-pressed={tool.enabled}
-                              aria-label={tool.enabled ? "禁用工具" : "启用工具"}
-                            >
-                              <span
-                                className={cn(
-                                  "inline-block h-4 w-4 rounded-full bg-card transition-transform",
-                                  tool.enabled ? "translate-x-5" : "translate-x-1"
-                                )}
-                              />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {syncState.state !== "idle" && syncState.message && (
-                    <p
-                      className={cn(
-                        "text-xs",
-                        syncState.state === "error"
-                          ? "text-destructive"
-                          : "text-muted-foreground"
-                      )}
-                    >
-                      {syncState.message}
-                    </p>
                   )}
                 </div>
               );
