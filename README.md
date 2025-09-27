@@ -22,8 +22,10 @@ A minimal, multi‑provider AI chat app built with Next.js 15 and React 19. It s
 - [x] New chat
 - [x] Custom API key
 - [x] Deploy
-- [ ] Tools
-- [ ] MCP
+- [x] Web Search
+- [x] MCP
+- [ ] Reasoning
+- [ ] Multimodal
 - [ ] Auth
 - [ ] Persistent storage
 - [ ] Optimization
