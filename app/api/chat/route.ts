@@ -14,6 +14,7 @@ import {
   convertToModelMessages,
   streamText,
   stepCountIs,
+  type ToolSet,
   type UIMessage,
 } from "ai";
 
@@ -28,6 +29,7 @@ import { ApiKeys, ApiBaseUrls } from "@/lib/store";
 import {
   loadMcpToolsForChat,
   type McpChatServerConfig,
+  type McpHttpHeader,
   type McpToolSummary,
 } from "@/lib/mcp-client";
 
@@ -85,7 +87,7 @@ const normalizeMcpServers = (
   }
 
   const servers = config.servers
-    .map((server, index) => {
+    .map<McpChatServerConfig | null>((server, index) => {
       if (!server || typeof server !== "object") {
         return null;
       }
@@ -108,9 +110,9 @@ const normalizeMcpServers = (
         return null;
       }
 
-      const headers = Array.isArray(server.headers)
+      const headers: McpHttpHeader[] = Array.isArray(server.headers)
         ? server.headers
-            .map((header) => ({
+            .map<McpHttpHeader>((header) => ({
               key:
                 typeof header?.key === "string"
                   ? header.key.trim()
@@ -122,6 +124,9 @@ const normalizeMcpServers = (
             }))
             .filter((header) => header.key && header.value)
         : [];
+
+      const normalizedHeaders =
+        headers.length > 0 ? headers : undefined;
 
       const enabledTools = Array.isArray(server.enabledTools)
         ? server.enabledTools.filter(
@@ -135,7 +140,7 @@ const normalizeMcpServers = (
             ? server.id
             : `server-${index}`,
         url: validatedUrl,
-        headers,
+        headers: normalizedHeaders,
         enabledTools,
       } satisfies McpChatServerConfig;
     })
@@ -301,7 +306,7 @@ export async function POST(req: Request) {
     }
 
     const normalizedMcpServers = normalizeMcpServers(mcp);
-    let mcpTools: Record<string, unknown> | null = null;
+    let mcpTools: ToolSet | null = null;
     let mcpToolSummaries: McpToolSummary[] = [];
 
     if (normalizedMcpServers) {
@@ -344,17 +349,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const systemPrompt = systemPromptSections.join("\n\n");
-
-    const result = streamText({
-      model: provider,
-      system: systemPrompt,
-      messages: modelMessages,
-      ...(mcpTools ? { tools: mcpTools } : {}),
-      stopWhen: stepCountIs(4),
-      maxSteps: 6,
-    });
-
     const safeCleanup = async () => {
       if (!cleanupMcp || cleanupInvoked) {
         return;
@@ -367,11 +361,24 @@ export async function POST(req: Request) {
       }
     };
 
-    return result.toUIMessageStreamResponse({
+    const systemPrompt = systemPromptSections.join("\n\n");
+
+    const result = streamText({
+      model: provider,
+      system: systemPrompt,
+      messages: modelMessages,
+      ...(mcpTools ? { tools: mcpTools } : {}),
+      stopWhen: stepCountIs(4),
       onFinish: async () => {
         await safeCleanup();
       },
       onError: async () => {
+        await safeCleanup();
+      },
+    });
+
+    return result.toUIMessageStreamResponse({
+      onFinish: async () => {
         await safeCleanup();
       },
     });

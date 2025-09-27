@@ -1,4 +1,9 @@
-import { dynamicTool, jsonSchema } from "ai";
+import {
+  dynamicTool,
+  jsonSchema,
+  type JSONSchema7,
+  type ToolSet,
+} from "ai";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StreamableHTTPClientTransport,
@@ -47,7 +52,7 @@ export interface McpToolSummary {
 }
 
 export interface LoadedMcpTools {
-  tools: Record<string, unknown>;
+  tools: ToolSet;
   toolSummaries: McpToolSummary[];
   cleanup: () => Promise<void>;
   warnings: string[];
@@ -408,7 +413,7 @@ export async function callMcpTool({
 export async function loadMcpToolsForChat(
   servers: McpChatServerConfig[]
 ): Promise<LoadedMcpTools> {
-  const aggregatedTools: Record<string, unknown> = {};
+  const aggregatedTools: ToolSet = {};
   const cleanupCallbacks: Array<() => Promise<void>> = [];
   const warnings: string[] = [];
   const seenNames = new Set<string>();
@@ -472,16 +477,18 @@ export async function loadMcpToolsForChat(
           serverId,
           description: tool.description ?? undefined,
         });
-        const baseInputSchema =
-          tool.inputSchema ?? ({
+        const baseInputSchema: JSONSchema7 =
+          (tool.inputSchema as JSONSchema7 | undefined) ?? {
             type: "object",
             properties: {},
-          } as const);
+          };
         aggregatedTools[name] = dynamicTool({
           description: tool.description,
           inputSchema: jsonSchema({
             ...baseInputSchema,
-            properties: baseInputSchema.properties ?? {},
+            properties:
+              (baseInputSchema.properties as JSONSchema7["properties"]) ??
+              ({} as JSONSchema7["properties"]),
             additionalProperties: false,
           }),
           execute: async (

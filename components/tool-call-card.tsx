@@ -64,7 +64,7 @@ export function ToolCallCard({ part, className }: ToolCallCardProps) {
     }
     // Prefer rendering the raw output payload as JSON
     // If output is undefined, render an empty object
-    const output = (part as any).output;
+    const output = part.state === "output-available" ? part.output : undefined;
     return prettyJson(output ?? {});
   }, [failed, part]);
 
