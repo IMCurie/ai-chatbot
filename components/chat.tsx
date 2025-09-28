@@ -64,7 +64,6 @@ export default function Chat({ id }: { id: string }) {
   const [isNetworkSearchEnabled, setIsNetworkSearchEnabled] = useState(false);
   const [searchSessions, setSearchSessions] = useState<SearchSession[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
-  
 
   useEffect(() => {
     if (!hasTavilyKey) {
@@ -159,7 +158,6 @@ export default function Chat({ id }: { id: string }) {
       }
     },
   });
-
 
   interface TavilySearchResponse {
     query: string;
@@ -331,7 +329,9 @@ export default function Chat({ id }: { id: string }) {
 
   const handleMcpToggle = useCallback(
     (nextValue?: boolean) => {
-      setMcpEnabled(typeof nextValue === "boolean" ? nextValue : !mcpSettings.enabled);
+      setMcpEnabled(
+        typeof nextValue === "boolean" ? nextValue : !mcpSettings.enabled
+      );
     },
     [mcpSettings.enabled, setMcpEnabled]
   );
@@ -399,23 +399,17 @@ export default function Chat({ id }: { id: string }) {
 
   return (
     // 三段式布局：顶部模型/标题 + 中部滚动会话 + 底部输入框
-    <div className="flex h-full min-h-0 flex-col font-sans">
-      {/* Header */}
-      <div className="shrink-0 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="grid h-14 w-full grid-cols-3 items-center px-4">
-          <div className="justify-self-start">
-            <ModelSelector selectedModel={model} onModelChange={setModel} />
-          </div>
-          <div />
-          <div />
-        </div>
+    <div className="relative h-screen flex flex-col">
+      <div className="absolute top-2 left-2 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <ModelSelector selectedModel={model} onModelChange={setModel} />
       </div>
-
-      {/* Conversation (scrollable) */}
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-stable">
+      <div
+        className="w-full flex-1 overflow-y-auto"
+        style={{ scrollbarGutter: "stable both-edges" }}
+      >
         <div className="mx-auto max-w-3xl px-4">
           <div className="min-h-full flex flex-col">
-            <div className="pt-3">
+            <div className="pt-3 pb-8">
               {messages.length === 0 ? (
                 <Greeting />
               ) : (
@@ -433,36 +427,33 @@ export default function Chat({ id }: { id: string }) {
                 />
               )}
             </div>
-
-            {/* Sticky input inside scroll area with background fade to prevent text peeking around rounded corners */}
-            <div className="sticky bottom-0 z-10 mt-auto">
-              <div className="pointer-events-none bg-gradient-to-t from-background via-background/95 to-background/0 pt-3 pb-3">
-                <div className="pointer-events-auto">
-                  <Input
-                    inputValue={input}
-                    onInputChange={(e) => setInput(e.target.value)}
-                    onSubmit={handleFormSubmit}
-                    status={status}
-                    stop={stop}
-                    disabled={!model}
-                    placeholder={
-                      !model ? "请先在设置中配置API密钥并选择模型" : undefined
-                    }
-                    networkSearchEnabled={isNetworkSearchEnabled}
-                    onToggleNetworkSearch={handleNetworkSearchToggle}
-                    networkSearchAvailable={hasTavilyKey}
-                    networkSearchLoading={searchSessions.some(
-                      (session) => session.status === "processing"
-                    )}
-                    showNetworkSearchToggle={isHydrated}
-                    mcpEnabled={mcpSettings.enabled}
-                    onToggleMcp={handleMcpToggle}
-                    showMcpToggle={isHydrated}
-                  />
-                </div>
-              </div>
-            </div>
           </div>
+        </div>
+      </div>
+
+      <div className="w-full bg-white/80 pb-4 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="mx-auto max-w-3xl px-4">
+          <Input
+            inputValue={input}
+            onInputChange={(e) => setInput(e.target.value)}
+            onSubmit={handleFormSubmit}
+            status={status}
+            stop={stop}
+            disabled={!model}
+            placeholder={
+              !model ? "请先在设置中配置API密钥并选择模型" : undefined
+            }
+            networkSearchEnabled={isNetworkSearchEnabled}
+            onToggleNetworkSearch={handleNetworkSearchToggle}
+            networkSearchAvailable={hasTavilyKey}
+            networkSearchLoading={searchSessions.some(
+              (session) => session.status === "processing"
+            )}
+            showNetworkSearchToggle={isHydrated}
+            mcpEnabled={mcpSettings.enabled}
+            onToggleMcp={handleMcpToggle}
+            showMcpToggle={isHydrated}
+          />
         </div>
       </div>
     </div>

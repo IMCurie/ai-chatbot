@@ -6,7 +6,7 @@ export function StopButton({ stop }: { stop: () => void }) {
     <button
       className={cn(
         "flex items-center justify-center",
-        "border-none rounded-full w-8 h-8",
+        "border-none rounded-full w-10 h-10",
         "cursor-pointer bg-gray-800 hover:bg-gray-700",
         "transition-colors duration-200 ease-in-out",
         "shadow-sm hover:shadow-md"
